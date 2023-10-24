@@ -37,15 +37,27 @@ Section STS.
     | obsE (e: syscall)
   .
 
+  Variant sort: Type :=
+    | internal
+    (* We fix return value as nat for simplicity. *)
+    | final (retv: nat)
+    | visible
+    | undef
+  .
+
   Record STS: Type :=
     mk_sts {
         state: Type;
         init: state;
         (* step is a relation, not a function, because in general, program execution can be non-deterministic. *)
         step: state -> eventE -> state -> Prop;
-        (* We fix return value as nat for simplicity. *)
-        terminates: state -> nat -> Prop;
-        undefined: state -> Prop;
+        state_sort: state -> sort;
+      }.
+
+  Record STS_wf (s: STS): Prop :=
+    mk_sts_wf {
+        vis_wf: forall st0, (s.(state_sort) st0 = visible) -> (forall ev st1, s.(step) st0 ev st1 -> ev <> silentE);
+        final_wf: forall st0 retv, (s.(state_sort) st0 = final retv) -> (forall ev st1, ~ s.(step) st0 ev st1);
       }.
 
 End STS.
@@ -57,8 +69,7 @@ Section BEH.
   Local Notation state := prog.(state).
   Local Notation init := prog.(init).
   Local Notation step := prog.(step).
-  Local Notation terminates := prog.(terminates).
-  Local Notation undefined := prog.(undefined).
+  Local Notation ssort := prog.(state_sort).
 
   Variant _diverge
           (diverge: state -> Prop)
@@ -66,10 +77,16 @@ Section BEH.
     state -> Prop :=
     | diverge_silent
         st0 st1
+        (SORT: ssort st0 = internal)
         (STEP: step st0 silentE st1)
         (DIV: diverge st1)
       :
       _diverge diverge st0
+    | diverge_ub
+        st
+        (SORT: ssort st = undef)
+      :
+      _diverge diverge st
   .
 
   Definition diverge: state -> Prop := paco1 _diverge bot1.
@@ -80,18 +97,19 @@ Section BEH.
     ii. inv IN.
     - econs 1; eauto.
       (* eapply diverge_silent; eauto. *)
+    - econs 2; eauto.
   Qed.
 
   (* Behavior is a mixed inductive-coinductive definition.
      Inductive because we only want finite number of silent steps (infinite silent step case is treated as divergence).
- *)
+  *)
   Inductive _behavior
             (behavior: state -> trace -> Prop)
     :
     state -> trace -> Prop :=
   | beh_term
       st retv
-      (TERM: terminates st retv)
+      (SORT: ssort st = final retv)
     :
     _behavior behavior st (term retv)
   | beh_spin
@@ -101,18 +119,20 @@ Section BEH.
     _behavior behavior st spin
   | beh_ub
       st tr
-      (UB: undefined st)
+      (SORT: ssort st = undef)
     :
     _behavior behavior st tr
   (* Note that silent case is inductive. *)
   | beh_silent
       st0 st1 tr
+      (SORT: ssort st0 = internal)
       (STEP: step st0 silentE st1)
       (NEXT: _behavior behavior st1 tr)
     :
     _behavior behavior st0 tr
   | beh_obs
       st0 st1 hd tl
+      (SORT: ssort st0 = visible)
       (STEP: step st0 (obsE hd) st1)
       (NEXT: behavior st1 tl)
     :
@@ -156,6 +176,8 @@ Section SIM.
 
   Variable src: STS.
   Variable tgt: STS.
+  Notation sort0 := src.(state_sort).
+  Notation sort1 := tgt.(state_sort).
 
   Inductive _sim
             (sim: forall (RR: nat -> nat -> Prop), bool -> bool -> src.(state) -> tgt.(state) -> Prop)
@@ -164,14 +186,16 @@ Section SIM.
     src.(state) -> tgt.(state) -> Prop :=
   | sim_term
       st_src st_tgt r_src r_tgt
-      (TERMS: src.(terminates) st_src r_src)
-      (TERMT: tgt.(terminates) st_tgt r_tgt)
+      (TERMS: sort0 st_src = final r_src)
+      (TERMT: sort1 st_tgt = final r_tgt)
       (SIM: RR r_src r_tgt)
     :
     _sim sim RR p_src p_tgt st_src st_tgt
   | sim_obs
       ev
       st_src0 st_tgt0
+      (OBSS: sort0 st_src0 = visible)
+      (OBST: sort1 st_tgt0 = visible)
       (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
                        exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
                                     (_sim sim RR true true st_src1 st_tgt1))
@@ -179,19 +203,21 @@ Section SIM.
     _sim sim RR p_src p_tgt st_src0 st_tgt0
   | sim_silentL
       st_src0 st_tgt
+      (SORT: sort0 st_src0 = internal)
       (SIM: exists st_src1, (src.(step) st_src0 silentE st_src1)
                        /\ (_sim sim RR true p_tgt st_src1 st_tgt))
     :
     _sim sim RR p_src p_tgt st_src0 st_tgt
   | sim_silentR
       st_src st_tgt0
+      (SORT: sort1 st_tgt0 = internal)
       (SIM: forall st_tgt1, (tgt.(step) st_tgt0 silentE st_tgt1) ->
                        (_sim sim RR p_src true st_src st_tgt1))
     :
     _sim sim RR p_src p_tgt st_src st_tgt0
   | sim_ub
       st_src st_tgt
-      (UB: src.(undefined) st_src)
+      (SORT: sort0 st_src = undef)
     :
     _sim sim RR p_src p_tgt st_src st_tgt
   | sim_progress
@@ -207,29 +233,33 @@ Section SIM.
         (RR: nat -> nat -> Prop)
         (P: bool -> bool -> src.(state) -> tgt.(state) -> Prop)
   (TERM: forall p_src p_tgt st_src st_tgt r_src r_tgt
-      (TERMS: src.(terminates) st_src r_src)
-      (TERMT: tgt.(terminates) st_tgt r_tgt)
+      (TERMS: sort0 st_src = final r_src)
+      (TERMT: sort1 st_tgt = final r_tgt)
       (SIM: RR r_src r_tgt)
     ,
     P p_src p_tgt st_src st_tgt)
   (OBS: forall p_src p_tgt ev st_src0 st_tgt0
+      (OBSS: sort0 st_src0 = visible)
+      (OBST: sort1 st_tgt0 = visible)
       (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
                        exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
                                     (_sim sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
     P p_src p_tgt st_src0 st_tgt0)
   (SILENTL: forall p_src p_tgt st_src0 st_tgt
+      (SORT: sort0 st_src0 = internal)
       (SIM: exists st_src1, (src.(step) st_src0 silentE st_src1)
                        /\ (_sim sim RR true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
     ,
     P p_src p_tgt st_src0 st_tgt)
   (SILENTR: forall p_src p_tgt st_src st_tgt0
+      (SORT: sort1 st_tgt0 = internal)
       (SIM: forall st_tgt1, (tgt.(step) st_tgt0 silentE st_tgt1) ->
                        (_sim sim RR p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1))
     ,
     P p_src p_tgt st_src st_tgt0)
   (UB: forall p_src p_tgt st_src st_tgt
-      (UB: src.(undefined) st_src)
+      (UB: sort0 st_src = undef)
     ,
     P p_src p_tgt st_src st_tgt)
   (PROG: forall p_src p_tgt st_src st_tgt
@@ -268,29 +298,33 @@ Section SIM.
   Lemma sim_ind (RR: nat -> nat -> Prop)
         (P: bool -> bool -> src.(state) -> tgt.(state) -> Prop)
   (TERM: forall p_src p_tgt st_src st_tgt r_src r_tgt
-      (TERMS: src.(terminates) st_src r_src)
-      (TERMT: tgt.(terminates) st_tgt r_tgt)
+      (TERMS: sort0 st_src = final r_src)
+      (TERMT: sort1 st_tgt = final r_tgt)
       (SIM: RR r_src r_tgt)
     ,
     P p_src p_tgt st_src st_tgt)
   (OBS: forall p_src p_tgt ev st_src0 st_tgt0
+      (OBSS: sort0 st_src0 = visible)
+      (OBST: sort1 st_tgt0 = visible)
       (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
                        exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
                                     (sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
     P p_src p_tgt st_src0 st_tgt0)
   (SILENTL: forall p_src p_tgt st_src0 st_tgt
+      (SORT: sort0 st_src0 = internal)
       (SIM: exists st_src1, (src.(step) st_src0 silentE st_src1)
                        /\ (sim RR true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
     ,
     P p_src p_tgt st_src0 st_tgt)
   (SILENTR: forall p_src p_tgt st_src st_tgt0
+      (SORT: sort1 st_tgt0 = internal)
       (SIM: forall st_tgt1, (tgt.(step) st_tgt0 silentE st_tgt1) ->
                        (sim RR p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1))
     ,
     P p_src p_tgt st_src st_tgt0)
   (UB: forall p_src p_tgt st_src st_tgt
-      (UB: src.(undefined) st_src)
+      (UB: sort0 st_src = undef)
     ,
     P p_src p_tgt st_src st_tgt)
   (PROG: forall p_src p_tgt st_src st_tgt
@@ -311,11 +345,183 @@ Section SIM.
     - punfold SIM. 2: apply sim_mon. eapply sim_mon; eauto. i. pclearbot. auto.
   Qed.
 
-  Definition simulation := forall ps pt, sim (@eq nat) ps pt src.(init) tgt.(init).
+  Hint Constructors _sim: core.
+  Hint Unfold sim: core.
+  Hint Resolve sim_mon: paco.
+  Hint Resolve cpn5_wcompat: paco.
+
+  (* Upto properties. *)
+
+  Variant sim_indC
+          (sim: forall (RR: nat -> nat -> Prop), bool -> bool -> src.(state) -> tgt.(state) -> Prop)
+          (RR: nat -> nat -> Prop) p_src p_tgt
+    :
+    src.(state) -> tgt.(state) -> Prop :=
+    | sim_indC_term
+        st_src st_tgt r_src r_tgt
+        (TERMS: sort0 st_src = final r_src)
+        (TERMT: sort1 st_tgt = final r_tgt)
+        (SIM: RR r_src r_tgt)
+      :
+      sim_indC sim RR p_src p_tgt st_src st_tgt
+    | sim_indC_obs
+        ev
+        st_src0 st_tgt0
+        (OBSS: sort0 st_src0 = visible)
+        (OBST: sort1 st_tgt0 = visible)
+        (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
+                         exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
+                                      (_sim sim RR true true st_src1 st_tgt1))
+      :
+      sim_indC sim RR p_src p_tgt st_src0 st_tgt0
+    | sim_indC_silentL
+        st_src0 st_tgt
+        (SORT: sort0 st_src0 = internal)
+        (SIM: exists st_src1, (src.(step) st_src0 silentE st_src1)
+                         /\ (sim RR true p_tgt st_src1 st_tgt))
+      :
+      sim_indC sim RR p_src p_tgt st_src0 st_tgt
+    | sim_indC_silentR
+        st_src st_tgt0
+        (SORT: sort1 st_tgt0 = internal)
+        (SIM: forall st_tgt1, (tgt.(step) st_tgt0 silentE st_tgt1) ->
+                         (sim RR p_src true st_src st_tgt1))
+      :
+      sim_indC sim RR p_src p_tgt st_src st_tgt0
+    | sim_indC_ub
+        st_src st_tgt
+        (UB: sort0 st_src = undef)
+      :
+      sim_indC sim RR p_src p_tgt st_src st_tgt
+    | sim_indC_progress
+        st_src st_tgt
+        (SIM: sim RR false false st_src st_tgt)
+        (PS: p_src = true)
+        (PT: p_tgt = true)
+      :
+      sim_indC sim RR p_src p_tgt st_src st_tgt.
+
+  Lemma sim_indC_mon: monotone5 sim_indC.
+  Proof.
+    ii. inv IN.
+    all: try (econs; eauto; fail).
+    - econs 2; auto. i. specialize (SIM _ H). des. esplits; eauto. eapply sim_mon; eauto.
+    - des. econs 3; eauto.
+  Qed.
+
+  Hint Resolve sim_indC_mon: paco.
+
+  Lemma sim_indC_wrespectful: wrespectful5 _sim sim_indC.
+  Proof.
+    econs; eauto with paco.
+    i. inv PR; eauto.
+    - econs 2; eauto. i. specialize (SIM _ H). des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+    - econs 3; eauto. des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+    - econs 4; eauto. i. specialize (SIM _ H). eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+    - eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+  Qed.
+
+  Lemma sim_indC_spec: sim_indC <6= gupaco5 _sim (cpn5 _sim).
+  Proof.
+    i. eapply wrespect5_uclo; eauto with paco. eapply sim_indC_wrespectful.
+  Qed.
+
+  Variant sim_progressC
+          (sim: forall (RR: nat -> nat -> Prop), bool -> bool -> src.(state) -> tgt.(state) -> Prop)
+          (RR: nat -> nat -> Prop)
+    :
+    bool -> bool -> src.(state) -> tgt.(state) -> Prop :=
+    | sim_progressC_intro
+        ps0 ps1 pt0 pt1 st_src st_tgt
+        (SIM: sim RR ps1 pt1 st_src st_tgt)
+        (SRC: ps1 = true -> ps0 = true)
+        (TGT: pt1 = true -> pt0 = true)
+      :
+      sim_progressC sim RR ps0 pt0 st_src st_tgt.
+
+  Lemma sim_progressC_mon: monotone5 sim_progressC.
+  Proof.
+    ii. inv IN. econs; eauto.
+  Qed.
+
+  Hint Resolve sim_progressC_mon: paco.
+
+  Lemma sim_progressC_wrespectful: wrespectful5 _sim sim_progressC.
+  Proof.
+    econs; eauto with paco.
+    i. inv PR. apply GF in SIM.
+    generalize dependent x1. generalize dependent x2.
+    induction SIM using _sim_ind2; i; eauto.
+    - econs 2; auto. i. specialize (SIM _ H). des. esplits; eauto.
+    - econs 3; auto. des. esplits; eauto.
+    - econs 4; auto. i. specialize (SIM _ H). des. auto.
+    - clarify.
+      hexploit TGT; clear TGT; auto; i; clarify.
+      hexploit SRC; clear SRC; auto; i; clarify.
+      eapply sim_mon. econs 6; eauto.
+      i. eapply rclo5_base. auto.
+  Qed.
+
+  Lemma sim_progressC_spec: sim_progressC <6= gupaco5 _sim (cpn5 _sim).
+  Proof.
+    i. eapply wrespect5_uclo; eauto with paco. eapply sim_progressC_wrespectful.
+  Qed.
 
 End SIM.
+#[export] Hint Constructors _sim: core.
+#[export] Hint Unfold sim: core.
+#[export] Hint Resolve sim_mon: paco.
+#[export] Hint Resolve cpn5_wcompat: paco.
+
+Definition simulation (src tgt: STS) := forall ps pt, sim src tgt (@eq nat) ps pt src.(init) tgt.(init).
 
 Section ADEQ.
+
+  Lemma adequacy_spin
+        (SRC TGT: STS)
+        (WF: STS_wf TGT)
+        (RR: nat -> nat -> Prop)
+        ps pt src tgt
+        (SIM: sim SRC TGT RR ps pt src tgt)
+        (SPIN: diverge _ tgt)
+    :
+    diverge _ src.
+  Proof.
+    ginit. revert_until RR. gcofix CIH. i. revert SPIN.
+    induction SIM using sim_ind; i; clarify.
+    { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in TERMT; ss. }
+    { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in OBST; ss. }
+    { des. gstep. econs 1; eauto. gfinal. left; eauto. }
+    { punfold SPIN. inv SPIN.
+      2:{ rewrite SORT0 in SORT; ss. }
+      pclearbot. specialize (SIM _ STEP). des. apply SIM0 in DIV; auto.
+    }
+    { gstep. econs 2. auto. }
+    { remember false in SIM at 1. remember false in SIM at 1. clear Heqb0. revert Heqb SPIN.
+      induction SIM using sim_ind; i; clarify.
+      { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in TERMT; ss. }
+      { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in OBST; ss. }
+      { des. gstep. econs 1; eauto. gfinal. left; eauto. }
+      { punfold SPIN. inv SPIN.
+        2:{ rewrite SORT0 in SORT; ss. }
+        pclearbot. specialize (SIM _ STEP). des. apply SIM0 in DIV; auto.
+      }
+      { gstep. econs 2. auto. }
+    }
+  Qed.
+
+  Lemma adequacy_aux
+        (src tgt: STS)
+        (st_src0: src.(state))
+        (st_tgt0: tgt.(state))
+        ps pt
+        (SIM: sim src tgt eq ps pt st_src0 st_tgt0)
+    :
+    forall tr, (behavior _ st_tgt0 tr) -> (behavior _ st_src0 tr).
+  Proof.
+    revert_until tgt. ginit. gcofix CIH. i.
+    
+
 
   Theorem adequacy
           (src tgt: STS)
