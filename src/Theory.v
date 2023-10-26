@@ -100,6 +100,11 @@ Section BEH.
     - econs 2; eauto.
   Qed.
 
+  Hint Constructors _diverge: core.
+  Hint Unfold diverge: core.
+  Hint Resolve diverge_mon: paco.
+  Hint Resolve cpn1_wcompat: paco.
+
   (* Behavior is a mixed inductive-coinductive definition.
      Inductive because we only want finite number of silent steps (infinite silent step case is treated as divergence).
   *)
@@ -122,7 +127,7 @@ Section BEH.
       (SORT: ssort st = undef)
     :
     _behavior behavior st tr
-  (* Note that silent case is inductive. *)
+  (* Silent case is inductive. *)
   | beh_silent
       st0 st1 tr
       (SORT: ssort st0 = internal)
@@ -151,8 +156,103 @@ Section BEH.
     - econs 5; eauto.
   Qed.
 
-End BEH.
+  Hint Constructors _behavior: core.
+  Hint Unfold behavior: core.
+  Hint Resolve behavior_mon: paco.
+  Hint Resolve cpn2_wcompat: paco.
 
+  Lemma behavior_ind:
+    forall (P: state -> trace -> Prop)
+  (TERM: forall st retv
+      (SORT: ssort st = final retv)
+    ,
+      P st (term retv))
+  (SPIN: forall st
+      (SPIN: diverge st)
+    ,
+    P st spin)
+  (UB: forall st tr
+      (SORT: ssort st = undef)
+    ,
+    P st tr)
+  (SILENT: forall st0 st1 tr
+      (SORT: ssort st0 = internal)
+      (STEP: step st0 silentE st1)
+      (NEXT: behavior st1 tr)
+      (IH: P st1 tr)
+    ,
+    P st0 tr)
+  (OBS: forall st0 st1 hd tl
+      (SORT: ssort st0 = visible)
+      (STEP: step st0 (obsE hd) st1)
+      (NEXT: behavior st1 tl)
+    ,
+      P st0 (cons hd tl)),
+    forall st tr, (behavior st tr) -> P st tr.
+  Proof.
+    i. eapply _behavior_ind; eauto.
+    - i. pclearbot. eapply OBS; eauto.
+    - punfold H.
+  Qed.
+
+  (* Upto properties. *)
+
+  Variant behavior_indC
+          (behavior: state -> trace -> Prop)
+    :
+    state -> trace -> Prop :=
+    | beh_indC_term
+        st retv
+        (SORT: ssort st = final retv)
+      :
+      behavior_indC behavior st (term retv)
+    | beh_indC_spin
+        st
+        (SPIN: diverge st)
+      :
+      behavior_indC behavior st spin
+    | beh_indC_ub
+        st tr
+        (SORT: ssort st = undef)
+      :
+      behavior_indC behavior st tr
+    | beh_indC_silent
+        st0 st1 tr
+        (SORT: ssort st0 = internal)
+        (STEP: step st0 silentE st1)
+        (NEXT: behavior st1 tr)
+      :
+      behavior_indC behavior st0 tr
+    | beh_indC_obs
+        st0 st1 hd tl
+        (SORT: ssort st0 = visible)
+        (STEP: step st0 (obsE hd) st1)
+        (NEXT: behavior st1 tl)
+      :
+      behavior_indC behavior st0 (cons hd tl)
+  .
+
+  Lemma behavior_indC_mon: monotone2 behavior_indC.
+  Proof.
+    ii. inv IN. all: try (econs; eauto; fail).
+  Qed.
+
+  Hint Resolve behavior_indC_mon: paco.
+
+  Lemma behavior_indC_wrespectful: wrespectful2 _behavior behavior_indC.
+  Proof.
+    econs; eauto with paco.
+    i. inv PR; eauto.
+    - econs 4; eauto. eapply behavior_mon; eauto. i. eapply rclo2_base. auto.
+    - econs 5; eauto. eapply rclo2_base. eauto.
+  Qed.
+
+  Lemma behavior_indC_spec: behavior_indC <3= gupaco2 _behavior (cpn2 _behavior).
+  Proof.
+    i. eapply wrespect2_uclo; eauto with paco. eapply behavior_indC_wrespectful.
+  Qed.
+
+End BEH.
 #[global] Hint Constructors _diverge: core.
 #[global] Hint Unfold diverge: core.
 #[global] Hint Resolve diverge_mon: paco.
@@ -163,14 +263,18 @@ End BEH.
 #[global] Hint Resolve behavior_mon: paco.
 #[global] Hint Resolve cpn2_wcompat: paco.
 
-(* Refinement is set inclusion, thus transitive. *)
-Definition refines (tgt src: STS): Prop :=
-  forall tr, (behavior _ tgt.(init) tr) -> (behavior _ src.(init) tr).
+Section REF.
 
-Lemma refines_trans: Transitive refines.
-Proof.
-  ii. unfold refines in *. eauto.
-Qed.
+  (* Refinement is set inclusion, thus transitive. *)
+  Definition refines (tgt src: STS): Prop :=
+    forall tr, (behavior _ tgt.(init) tr) -> (behavior _ src.(init) tr).
+
+  Lemma refines_trans: Transitive refines.
+  Proof.
+    ii. unfold refines in *. eauto.
+  Qed.
+
+End REF.
 
 Section SIM.
 
@@ -192,11 +296,10 @@ Section SIM.
     :
     _sim sim RR p_src p_tgt st_src st_tgt
   | sim_obs
-      ev
       st_src0 st_tgt0
       (OBSS: sort0 st_src0 = visible)
       (OBST: sort1 st_tgt0 = visible)
-      (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
+      (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
                        exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
                                     (_sim sim RR true true st_src1 st_tgt1))
     :
@@ -238,10 +341,10 @@ Section SIM.
       (SIM: RR r_src r_tgt)
     ,
     P p_src p_tgt st_src st_tgt)
-  (OBS: forall p_src p_tgt ev st_src0 st_tgt0
+  (OBS: forall p_src p_tgt st_src0 st_tgt0
       (OBSS: sort0 st_src0 = visible)
       (OBST: sort1 st_tgt0 = visible)
-      (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
+      (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
                        exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
                                     (_sim sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
@@ -275,7 +378,7 @@ Section SIM.
   Proof.
     fix IH 5. i. inv SIM.
     - eapply TERM; eauto.
-    - eapply OBS; eauto. i. specialize (SIM0 _ H). des; eauto.
+    - eapply OBS; eauto. i. specialize (SIM0 _ _ H). des; eauto.
     - eapply SILENTL; eauto. des; eauto.
     - eapply SILENTR; eauto.
     - eapply UB; eauto.
@@ -288,7 +391,7 @@ Section SIM.
   Proof.
     ii. induction IN using _sim_ind2.
     - econs 1; eauto.
-    - econs 2; eauto. i. specialize (SIM _ H). des; eauto.
+    - econs 2; eauto. i. specialize (SIM _ _ H). des; eauto.
     - econs 3; eauto. des; eauto.
     - econs 4; eauto. i. specialize (SIM _ H). des; eauto.
     - econs 5; eauto.
@@ -303,10 +406,10 @@ Section SIM.
       (SIM: RR r_src r_tgt)
     ,
     P p_src p_tgt st_src st_tgt)
-  (OBS: forall p_src p_tgt ev st_src0 st_tgt0
+  (OBS: forall p_src p_tgt st_src0 st_tgt0
       (OBSS: sort0 st_src0 = visible)
       (OBST: sort1 st_tgt0 = visible)
-      (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
+      (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
                        exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
                                     (sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
@@ -339,7 +442,7 @@ Section SIM.
         P p_src p_tgt st_src st_tgt.
   Proof.
     i. eapply _sim_ind2; i; eauto.
-    - eapply OBS; eauto. i. specialize (SIM0 _ H). des. esplits; eauto. pfold. eapply sim_mon; eauto.
+    - eapply OBS; eauto. i. specialize (SIM0 _ _ H). des. esplits; eauto. pfold. eapply sim_mon; eauto.
     - eapply SILENTL; eauto. des. esplits; eauto. pfold. eapply sim_mon; eauto.
     - eapply SILENTR; eauto. i. specialize (SIM0 _ H). des. splits; eauto. pfold. eapply sim_mon; eauto.
     - punfold SIM. 2: apply sim_mon. eapply sim_mon; eauto. i. pclearbot. auto.
@@ -365,11 +468,10 @@ Section SIM.
       :
       sim_indC sim RR p_src p_tgt st_src st_tgt
     | sim_indC_obs
-        ev
         st_src0 st_tgt0
         (OBSS: sort0 st_src0 = visible)
         (OBST: sort1 st_tgt0 = visible)
-        (SIM: forall st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
+        (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 (obsE ev) st_tgt1) ->
                          exists st_src1, (src.(step) st_src0 (obsE ev) st_src1) /\
                                       (_sim sim RR true true st_src1 st_tgt1))
       :
@@ -405,7 +507,7 @@ Section SIM.
   Proof.
     ii. inv IN.
     all: try (econs; eauto; fail).
-    - econs 2; auto. i. specialize (SIM _ H). des. esplits; eauto. eapply sim_mon; eauto.
+    - econs 2; auto. i. specialize (SIM _ _ H). des. esplits; eauto. eapply sim_mon; eauto.
     - des. econs 3; eauto.
   Qed.
 
@@ -415,7 +517,7 @@ Section SIM.
   Proof.
     econs; eauto with paco.
     i. inv PR; eauto.
-    - econs 2; eauto. i. specialize (SIM _ H). des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+    - econs 2; eauto. i. specialize (SIM _ _ H). des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
     - econs 3; eauto. des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
     - econs 4; eauto. i. specialize (SIM _ H). eapply sim_mon; eauto. i. eapply rclo5_base. auto.
     - eapply sim_mon; eauto. i. eapply rclo5_base. auto.
@@ -452,7 +554,7 @@ Section SIM.
     i. inv PR. apply GF in SIM.
     generalize dependent x1. generalize dependent x2.
     induction SIM using _sim_ind2; i; eauto.
-    - econs 2; auto. i. specialize (SIM _ H). des. esplits; eauto.
+    - econs 2; auto. i. specialize (SIM _ _ H). des. esplits; eauto.
     - econs 3; auto. des. esplits; eauto.
     - econs 4; auto. i. specialize (SIM _ H). des. auto.
     - clarify.
@@ -511,24 +613,90 @@ Section ADEQ.
   Qed.
 
   Lemma adequacy_aux
-        (src tgt: STS)
-        (st_src0: src.(state))
-        (st_tgt0: tgt.(state))
+        (SRC TGT: STS)
+        (WF: STS_wf TGT)
+        (st_src0: SRC.(state))
+        (st_tgt0: TGT.(state))
         ps pt
-        (SIM: sim src tgt eq ps pt st_src0 st_tgt0)
+        (SIM: sim _ _ eq ps pt st_src0 st_tgt0)
     :
     forall tr, (behavior _ st_tgt0 tr) -> (behavior _ st_src0 tr).
   Proof.
-    revert_until tgt. ginit. gcofix CIH. i.
-    
-
+    revert_until WF. ginit. gcofix CIH. i.
+    move H0 before CIH. revert_until H0. induction H0 using behavior_ind; ii.
+    { generalize dependent retv. rename st into st_tgt0.
+      induction SIM using sim_ind; i; ss; clarify.
+      { rewrite SORT in TERMT. inv TERMT. gstep. econs 1. auto. }
+      { rewrite SORT in OBST; inv OBST. }
+      { des. guclo behavior_indC_spec. econs 4; auto. auto. }
+      { rewrite SORT0 in SORT. inv SORT. }
+      { gstep. econs 3. auto. }
+      { remember false in SIM at 1. remember false in SIM at 1. clear Heqb.
+        move SIM before CIH. revert_until SIM. induction SIM using sim_ind; ii; ss; clarify.
+        { rewrite SORT in TERMT. inv TERMT. gstep. econs 1. auto. }
+        { rewrite SORT in OBST; inv OBST. }
+        { des. guclo behavior_indC_spec. econs 4; auto. auto. }
+        { rewrite SORT0 in SORT. inv SORT. }
+        { gstep. econs 3. auto. }
+      }
+    }
+    { gstep. econs 2. eapply adequacy_spin; eauto. }
+    { move SIM before CIH. revert_until SIM. induction SIM using sim_ind; ii; ss; clarify.
+      { rewrite SORT in TERMT; inv TERMT. }
+      { rewrite SORT in OBST; inv OBST. }
+      { des. guclo behavior_indC_spec. econs 4; eauto. }
+      { rewrite SORT0 in SORT; inv SORT. }
+      { gstep. econs 3; auto. }
+      { remember false in SIM at 1. remember false in SIM at 1. clear Heqb.
+        move SIM before CIH. revert_until SIM. induction SIM using sim_ind; ii; ss; clarify.
+        { rewrite SORT in TERMT; inv TERMT. }
+        { rewrite SORT in OBST; inv OBST. }
+        { des. guclo behavior_indC_spec. econs 4; eauto. }
+        { rewrite SORT0 in SORT; inv SORT. }
+        { gstep. econs 3; auto. }
+      }
+    }
+    { move IHbehavior before CIH. move SIM before IHbehavior. revert_until SIM. induction SIM using sim_ind; ii; ss; clarify.
+      { rewrite SORT in TERMT; inv TERMT. }
+      { rewrite SORT in OBST; inv OBST. }
+      { des. guclo behavior_indC_spec. econs 4; eauto. }
+      { specialize (SIM _ STEP). des. eapply IHbehavior; eauto. }
+      { gstep. econs 3; auto. }
+      { remember false in SIM at 1. remember false in SIM at 1. clear Heqb.
+        move SIM before CIH. revert_until SIM. induction SIM using sim_ind; ii; ss; clarify.
+        { rewrite SORT in TERMT; inv TERMT. }
+        { rewrite SORT in OBST; inv OBST. }
+        { des. guclo behavior_indC_spec. econs 4; eauto. }
+        { specialize (SIM _ STEP). des. eapply IHbehavior; eauto. }
+        { gstep. econs 3; auto. }
+      }
+    }
+    { move SIM before CIH. revert_until SIM. induction SIM using sim_ind; ii; ss; clarify.
+      { rewrite SORT in TERMT; inv TERMT. }
+      { specialize (SIM _ _ STEP). des. gstep. econs 5; eauto. gfinal. left. eauto. }
+      { des. guclo behavior_indC_spec. econs 4; eauto. }
+      { rewrite SORT0 in SORT; inv SORT. }
+      { gstep. econs 3; auto. }
+      { remember false in SIM at 1. remember false in SIM at 1. clear Heqb.
+        move SIM before CIH. revert_until SIM. induction SIM using sim_ind; ii; ss; clarify.
+        { rewrite SORT in TERMT; inv TERMT. }
+        { specialize (SIM _ _ STEP). des. gstep. econs 5; eauto. gfinal. left. eauto. }
+        { des. guclo behavior_indC_spec. econs 4; eauto. }
+        { rewrite SORT0 in SORT; inv SORT. }
+        { gstep. econs 3; auto. }
+      }
+    }
+  Qed.
 
   Theorem adequacy
-          (src tgt: STS)
-          (SIM: simulation src tgt)
+          (SRC TGT: STS)
+          (WF: STS_wf TGT)
+          (SIM: simulation SRC TGT)
     :
-    refines src tgt.
+    refines TGT SRC.
   Proof.
-  Admitted.
+    ii. eapply adequacy_aux; eauto.
+    Unshelve. all: exact false.
+  Qed.
 
 End ADEQ.
