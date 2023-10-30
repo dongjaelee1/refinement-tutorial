@@ -4,27 +4,31 @@ From Paco Require Import paco.
 
 Set Implicit Arguments.
 
-(* 
-  Program refinement is an approach in program verification, 
-  where one verifies that every possible behavior of a program (called the target) 
-  is also possible by another program (called the source).
-  Usually, behavior of a program is defined as a set of traces, where traces record observable events of a program.
-  Observables events can differ by what one wants to verify.
-  For example, this tutorial assumes system calls, divergence, and termination with a return value.
+(* Program refinement is an approach in program verification, 
+   where one verifies that every possible behavior of a program 
+   (called the target or the implementation) 
+   is also possible by another program (called the source or the spec).
+   Usually, behavior of a program is defined as a set of traces, 
+   where a trace is a stream of observable events of a program, 
+   including divergence (infinite silent execution), termination, and error.
+   Observable events can differ by what one wants to verify.
 *)
 
 (* We first define the trace. *)
 Section TRACE.
 
-  Variant syscall: Type :=
-    | syscallE (fn: String.string) (args: list nat) (retv: nat)
+  Context {event: Type}.
+
+  Variant observable: Type :=
+    | obs (ev: event)
   .
 
   CoInductive trace: Type :=
+  (* Termination can return a value, which is nat for our case. *)
   | term (retv: nat)
   | spin
   | ub
-  | cons (hd: syscall) (tl: trace)
+  | cons (hd: observable) (tl: trace)
   .
 
 End TRACE.
@@ -32,32 +36,39 @@ End TRACE.
 (* We assume a simple state transition system. *)
 Section STS.
 
-  Variant eventE: Type :=
+  Variant kind: Type :=
     | silentE
-    | obsE (e: syscall)
+    | observableE
   .
+
+  Record Label: Type :=
+    mk_label {
+        event: Type;
+        event_kind: event -> kind;
+      }.
 
   Variant sort: Type :=
     | internal
-    (* We fix return value as nat for simplicity. *)
     | final (retv: nat)
     | visible
     | undef
   .
 
-  Record STS: Type :=
+  Record STS {l: Label}: Type :=
     mk_sts {
         state: Type;
         init: state;
-        (* step is a relation, not a function, because in general, program execution can be non-deterministic. *)
-        step: state -> eventE -> state -> Prop;
+        (* Note that step is a relation, not a function. In general, program execution can be non-deterministic. *)
+        step: state -> l.(event) -> state -> Prop;
         state_sort: state -> sort;
       }.
 
-  Record STS_wf (s: STS): Prop :=
+  Record STS_wf {l: Label} (s: @STS l): Prop :=
     mk_sts_wf {
-        vis_wf: forall st0, (s.(state_sort) st0 = visible) -> (forall ev st1, s.(step) st0 ev st1 -> ev <> silentE);
-        final_wf: forall st0 retv, (s.(state_sort) st0 = final retv) -> (forall ev st1, ~ s.(step) st0 ev st1);
+        vis_wf: forall st0, (s.(state_sort) st0 = visible) ->
+                       (forall ev st1, s.(step) st0 ev st1 -> l.(event_kind) ev <> silentE);
+        final_wf: forall st0 retv, (s.(state_sort) st0 = final retv) ->
+                              (forall ev st1, ~ s.(step) st0 ev st1);
       }.
 
 End STS.
@@ -65,7 +76,11 @@ End STS.
 (* We now define the behavior of a STS. *)
 Section BEH.
 
-  Variable prog: STS.
+  Context {label: Label}.
+  Local Notation event := label.(event).
+  Local Notation ekind := label.(event_kind).
+
+  Context {prog: @STS label}.
   Local Notation state := prog.(state).
   Local Notation init := prog.(init).
   Local Notation step := prog.(step).
@@ -76,9 +91,10 @@ Section BEH.
     :
     state -> Prop :=
     | diverge_silent
-        st0 st1
+        st0 ev st1
         (SORT: ssort st0 = internal)
-        (STEP: step st0 silentE st1)
+        (KIND: ekind ev = silentE)
+        (STEP: step st0 ev st1)
         (DIV: diverge st1)
       :
       _diverge diverge st0
@@ -129,19 +145,21 @@ Section BEH.
     _behavior behavior st tr
   (* Silent case is inductive. *)
   | beh_silent
-      st0 st1 tr
+      st0 ev st1 tr
       (SORT: ssort st0 = internal)
-      (STEP: step st0 silentE st1)
+      (KIND: ekind ev = silentE)
+      (STEP: step st0 ev st1)
       (NEXT: _behavior behavior st1 tr)
     :
     _behavior behavior st0 tr
   | beh_obs
-      st0 st1 hd tl
+      st0 ev st1 tl
       (SORT: ssort st0 = visible)
-      (STEP: step st0 (obsE hd) st1)
+      (KIND: ekind ev = observableE)
+      (STEP: step st0 ev st1)
       (NEXT: behavior st1 tl)
     :
-    _behavior behavior st0 (cons hd tl)      
+    _behavior behavior st0 (cons (obs ev) tl)
   .
 
   Definition behavior: state -> trace -> Prop := paco2 _behavior bot2.
@@ -175,19 +193,21 @@ Section BEH.
       (SORT: ssort st = undef)
     ,
     P st tr)
-  (SILENT: forall st0 st1 tr
+  (SILENT: forall st0 ev st1 tr
       (SORT: ssort st0 = internal)
-      (STEP: step st0 silentE st1)
+      (KIND: ekind ev = silentE)
+      (STEP: step st0 ev st1)
       (NEXT: behavior st1 tr)
       (IH: P st1 tr)
     ,
     P st0 tr)
-  (OBS: forall st0 st1 hd tl
+  (OBS: forall st0 ev st1 tl
       (SORT: ssort st0 = visible)
-      (STEP: step st0 (obsE hd) st1)
+      (KIND: ekind ev = observableE)
+      (STEP: step st0 ev st1)
       (NEXT: behavior st1 tl)
     ,
-      P st0 (cons hd tl)),
+      P st0 (cons (obs ev) tl)),
     forall st tr, (behavior st tr) -> P st tr.
   Proof.
     i. eapply _behavior_ind; eauto.
@@ -217,19 +237,21 @@ Section BEH.
       :
       behavior_indC behavior st tr
     | beh_indC_silent
-        st0 st1 tr
+        st0 ev st1 tr
         (SORT: ssort st0 = internal)
-        (STEP: step st0 silentE st1)
+        (KIND: ekind ev = silentE)
+        (STEP: step st0 ev st1)
         (NEXT: behavior st1 tr)
       :
       behavior_indC behavior st0 tr
     | beh_indC_obs
-        st0 st1 hd tl
+        st0 ev st1 tl
         (SORT: ssort st0 = visible)
-        (STEP: step st0 (obsE hd) st1)
+        (KIND: ekind ev = observableE)
+        (STEP: step st0 ev st1)
         (NEXT: behavior st1 tl)
       :
-      behavior_indC behavior st0 (cons hd tl)
+      behavior_indC behavior st0 (cons (obs ev) tl)
   .
 
   Lemma behavior_indC_mon: monotone2 behavior_indC.
@@ -265,9 +287,11 @@ End BEH.
 
 Section REF.
 
+  Context {label: Label}.
+
   (* Refinement is set inclusion, thus transitive. *)
-  Definition refines (tgt src: STS): Prop :=
-    forall tr, (behavior _ tgt.(init) tr) -> (behavior _ src.(init) tr).
+  Definition refines (tgt src: @STS label): Prop :=
+    forall tr, (behavior tgt.(init) tr) -> (behavior src.(init) tr).
 
   Lemma refines_trans: Transitive refines.
   Proof.
@@ -276,6 +300,7 @@ Section REF.
 
 End REF.
 
+(* WIP *)
 Section SIM.
 
   Variable src: STS.
