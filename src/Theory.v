@@ -27,7 +27,6 @@ Section TRACE.
   (* Termination can return a value, which is nat for our case. *)
   | term (retv: nat)
   | spin
-  | ub
   | cons (hd: observable) (tl: trace)
   .
 
