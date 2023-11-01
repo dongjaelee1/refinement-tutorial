@@ -1,4 +1,3 @@
-From Coq Require Import Classes.RelationClasses.
 From sflib Require Import sflib.
 From Paco Require Import paco.
 From Tutorial Require Import Refinement.
