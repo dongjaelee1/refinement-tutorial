@@ -29,18 +29,18 @@ Section SIM.
     _sim sim RR p_src p_tgt st_src st_tgt
   | sim_obs
       st_src0 st_tgt0
-      (OBSS: ssort st_src0 = visible)
-      (OBST: tsort st_tgt0 = visible)
+      (OBSS: ssort st_src0 = normal)
+      (OBST: tsort st_tgt0 = normal)
       (SIM: forall ev st_tgt1,
           (tgt.(step) st_tgt0 ev st_tgt1) ->
-          (ekind ev = observableE) ->
+          (ekind ev = observableE) /\
           exists st_src1, (src.(step) st_src0 ev st_src1) /\
                        (_sim sim RR true true st_src1 st_tgt1))
     :
     _sim sim RR p_src p_tgt st_src0 st_tgt0
   | sim_silentS
       st_src0 st_tgt
-      (SORT: ssort st_src0 = internal)
+      (SORT: ssort st_src0 = normal)
       (SIM: exists ev st_src1,
           (src.(step) st_src0 ev st_src1) /\
             (ekind ev = silentE) /\
@@ -49,10 +49,10 @@ Section SIM.
     _sim sim RR p_src p_tgt st_src0 st_tgt
   | sim_silentR
       st_src st_tgt0
-      (SORT: tsort st_tgt0 = internal)
+      (SORT: tsort st_tgt0 = normal)
       (SIM: forall ev st_tgt1,
           (tgt.(step) st_tgt0 ev st_tgt1) ->
-          (ekind ev = silentE) ->
+          (ekind ev = silentE) /\
           (_sim sim RR p_src true st_src st_tgt1))
     :
     _sim sim RR p_src p_tgt st_src st_tgt0
@@ -80,24 +80,25 @@ Section SIM.
     ,
     P p_src p_tgt st_src st_tgt)
   (OBS: forall p_src p_tgt st_src0 st_tgt0
-      (OBSS: ssort st_src0 = visible)
-      (OBST: tsort st_tgt0 = visible)
+      (OBSS: ssort st_src0 = normal)
+      (OBST: tsort st_tgt0 = normal)
       (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 ev st_tgt1) ->
-                          (ekind ev = observableE) ->
+                          (ekind ev = observableE) /\
                        exists st_src1, (src.(step) st_src0 ev st_src1) /\
                                     (_sim sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
     P p_src p_tgt st_src0 st_tgt0)
   (SILENTL: forall p_src p_tgt st_src0 st_tgt
-      (SORT: ssort st_src0 = internal)
-      (SIM: exists ev st_src1, (src.(step) st_src0 ev st_src1) /\ (ekind ev = silentE) /\
+      (SORT: ssort st_src0 = normal)
+      (SIM: exists ev st_src1, (src.(step) st_src0 ev st_src1) /\
+                            (ekind ev = silentE) /\
                        (_sim sim RR true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
     ,
     P p_src p_tgt st_src0 st_tgt)
   (SILENTR: forall p_src p_tgt st_src st_tgt0
-      (SORT: tsort st_tgt0 = internal)
+      (SORT: tsort st_tgt0 = normal)
       (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 ev st_tgt1) ->
-                          (ekind ev = silentE) ->
+                          (ekind ev = silentE) /\
                        ((_sim sim RR p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1)))
     ,
     P p_src p_tgt st_src st_tgt0)
@@ -118,9 +119,9 @@ Section SIM.
   Proof.
     fix IH 5. i. inv SIM.
     - eapply TERM; eauto.
-    - eapply OBS; eauto. i. specialize (SIM0 _ _ H H0). des; eauto.
+    - eapply OBS; eauto. i. specialize (SIM0 _ _ H). des; esplits; eauto.
     - eapply SILENTL; eauto. des. esplits; eauto.
-    - eapply SILENTR; eauto.
+    - eapply SILENTR; eauto. i. specialize (SIM0 _ _ H). des. splits; auto.
     - eapply UB; eauto.
     - eapply PROG; eauto.
   Qed.
@@ -131,9 +132,9 @@ Section SIM.
   Proof.
     ii. induction IN using _sim_ind2.
     - econs 1; eauto.
-    - econs 2; eauto. i. specialize (SIM _ _ H H0). des; eauto.
+    - econs 2; eauto. i. specialize (SIM _ _ H). des; eauto.
     - econs 3; eauto. des; eauto.
-    - econs 4; eauto. i. specialize (SIM _ _ H H0). des; eauto.
+    - econs 4; eauto. i. specialize (SIM _ _ H). des; eauto.
     - econs 5; eauto.
     - econs 6; eauto.
   Qed.
@@ -147,24 +148,25 @@ Section SIM.
     ,
     P p_src p_tgt st_src st_tgt)
   (OBS: forall p_src p_tgt st_src0 st_tgt0
-      (OBSS: ssort st_src0 = visible)
-      (OBST: tsort st_tgt0 = visible)
+      (OBSS: ssort st_src0 = normal)
+      (OBST: tsort st_tgt0 = normal)
       (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 ev st_tgt1) ->
-                          (ekind ev = observableE) ->
+                          (ekind ev = observableE) /\
                        exists st_src1, (src.(step) st_src0 ev st_src1) /\
                                     (sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
     P p_src p_tgt st_src0 st_tgt0)
   (SILENTL: forall p_src p_tgt st_src0 st_tgt
-      (SORT: ssort st_src0 = internal)
-      (SIM: exists ev st_src1, (src.(step) st_src0 ev st_src1) /\ (ekind ev = silentE) /\
+      (SORT: ssort st_src0 = normal)
+      (SIM: exists ev st_src1, (src.(step) st_src0 ev st_src1) /\
+                            (ekind ev = silentE) /\
                        (sim RR true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
     ,
     P p_src p_tgt st_src0 st_tgt)
   (SILENTR: forall p_src p_tgt st_src st_tgt0
-      (SORT: tsort st_tgt0 = internal)
+      (SORT: tsort st_tgt0 = normal)
       (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 ev st_tgt1) ->
-                          (ekind ev = silentE) ->
+                          (ekind ev = silentE) /\
                        ((sim RR p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1)))
     ,
     P p_src p_tgt st_src st_tgt0)
@@ -184,9 +186,9 @@ Section SIM.
         P p_src p_tgt st_src st_tgt.
   Proof.
     i. eapply _sim_ind2; i; eauto.
-    - eapply OBS; eauto. i. specialize (SIM0 _ _ H H0). des. esplits; eauto. pfold. eapply sim_mon; eauto.
+    - eapply OBS; eauto. i. specialize (SIM0 _ _ H). des. esplits; eauto. pfold. eapply sim_mon; eauto.
     - eapply SILENTL; eauto. des. esplits; eauto. pfold. eapply sim_mon; eauto.
-    - eapply SILENTR; eauto. i. specialize (SIM0 _ _ H H0). des. splits; eauto. pfold. eapply sim_mon; eauto.
+    - eapply SILENTR; eauto. i. specialize (SIM0 _ _ H). des. splits; eauto. pfold. eapply sim_mon; eauto.
     - punfold SIM. 2: apply sim_mon. eapply sim_mon; eauto. i. pclearbot. auto.
   Qed.
 
@@ -211,26 +213,27 @@ Section SIM.
       sim_indC sim RR p_src p_tgt st_src st_tgt
     | sim_indC_obs
         st_src0 st_tgt0
-        (OBSS: ssort st_src0 = visible)
-        (OBST: tsort st_tgt0 = visible)
+        (OBSS: ssort st_src0 = normal)
+        (OBST: tsort st_tgt0 = normal)
         (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 ev st_tgt1) ->
-                            (ekind ev = observableE) ->
+                            (ekind ev = observableE) /\
                          exists st_src1, (src.(step) st_src0 ev st_src1) /\
                                       (_sim sim RR true true st_src1 st_tgt1))
       :
       sim_indC sim RR p_src p_tgt st_src0 st_tgt0
     | sim_indC_silentL
         st_src0 st_tgt
-        (SORT: ssort st_src0 = internal)
-        (SIM: exists ev st_src1, (src.(step) st_src0 ev st_src1) /\ (ekind ev = silentE) /\
+        (SORT: ssort st_src0 = normal)
+        (SIM: exists ev st_src1, (src.(step) st_src0 ev st_src1) /\
+                              (ekind ev = silentE) /\
                          (sim RR true p_tgt st_src1 st_tgt))
       :
       sim_indC sim RR p_src p_tgt st_src0 st_tgt
     | sim_indC_silentR
         st_src st_tgt0
-        (SORT: tsort st_tgt0 = internal)
+        (SORT: tsort st_tgt0 = normal)
         (SIM: forall ev st_tgt1, (tgt.(step) st_tgt0 ev st_tgt1) ->
-                            (ekind ev = silentE) ->
+                            (ekind ev = silentE) /\
                          (sim RR p_src true st_src st_tgt1))
       :
       sim_indC sim RR p_src p_tgt st_src st_tgt0
@@ -251,8 +254,9 @@ Section SIM.
   Proof.
     ii. inv IN.
     all: try (econs; eauto; fail).
-    - econs 2; auto. i. specialize (SIM _ _ H H0). des. esplits; eauto. eapply sim_mon; eauto.
+    - econs 2; auto. i. specialize (SIM _ _ H). des. esplits; eauto. eapply sim_mon; eauto.
     - des. econs 3; eauto. esplits; eauto.
+    - econs 4; auto. i. specialize (SIM _ _ H). des. splits; eauto.
   Qed.
 
   Hint Resolve sim_indC_mon: paco.
@@ -261,9 +265,9 @@ Section SIM.
   Proof.
     econs; eauto with paco.
     i. inv PR; eauto.
-    - econs 2; eauto. i. specialize (SIM _ _ H H0). des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+    - econs 2; eauto. i. specialize (SIM _ _ H). des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
     - econs 3; eauto. des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
-    - econs 4; eauto. i. specialize (SIM _ _ H H0). eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+    - econs 4; eauto. i. specialize (SIM _ _ H). des. splits; auto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
     - eapply sim_mon; eauto. i. eapply rclo5_base. auto.
   Qed.
 
@@ -298,9 +302,9 @@ Section SIM.
     i. inv PR. apply GF in SIM.
     generalize dependent x1. generalize dependent x2.
     induction SIM using _sim_ind2; i; eauto.
-    - econs 2; auto. i. specialize (SIM _ _ H H0). des. esplits; eauto.
+    - econs 2; auto. i. specialize (SIM _ _ H). des. esplits; eauto.
     - econs 3; auto. des. esplits; eauto.
-    - econs 4; auto. i. specialize (SIM _ _ H H0). des. auto.
+    - econs 4; auto. i. specialize (SIM _ _ H). des. auto.
     - clarify.
       hexploit TGT; clear TGT; auto; i; clarify.
       hexploit SRC; clear SRC; auto; i; clarify.
@@ -340,21 +344,27 @@ Section ADEQ.
     ginit. revert_until RR. gcofix CIH. i. revert SPIN.
     induction SIM using @sim_ind; i; clarify.
     { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in TERMT; ss. }
-    { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in OBST; ss. }
+    { exfalso. punfold SPIN. inv SPIN.
+      - specialize (SIM _ _ STEP). des. rewrite SIM in KIND; inv KIND.
+      - rewrite SORT in OBST; inv OBST.
+    }
     { des. gstep. econs 1; eauto. gfinal. left; eauto. }
     { punfold SPIN. inv SPIN.
-      2:{ rewrite SORT0 in SORT; ss. }
-      pclearbot. specialize (SIM _ _ STEP KIND). des. apply SIM0 in DIV; auto.
+      - pclearbot. specialize (SIM _ _ STEP). des. apply SIM1 in DIV; auto.
+      - rewrite SORT0 in SORT; ss.
     }
     { gstep. econs 2. auto. }
     { remember false in SIM at 1. remember false in SIM at 1. clear Heqb0. revert Heqb SPIN.
       induction SIM using @sim_ind; i; clarify.
       { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in TERMT; ss. }
-      { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in OBST; ss. }
+      { exfalso. punfold SPIN. inv SPIN.
+        - specialize (SIM _ _ STEP). des. rewrite SIM in KIND; inv KIND.
+        - rewrite SORT in OBST; inv OBST.
+      }
       { des. gstep. econs 1; eauto. gfinal. left; eauto. }
       { punfold SPIN. inv SPIN.
-        2:{ rewrite SORT0 in SORT; ss. }
-        pclearbot. specialize (SIM _ _ STEP KIND). des. apply SIM0 in DIV; auto.
+        - pclearbot. specialize (SIM _ _ STEP). des. apply SIM1 in DIV; auto.
+        - rewrite SORT0 in SORT; ss.
       }
       { gstep. econs 2. auto. }
     }
@@ -408,34 +418,34 @@ Section ADEQ.
     { move IHbehavior before CIH. move SIM before IHbehavior. revert_until SIM.
       induction SIM using @sim_ind; ii; ss; clarify.
       { rewrite SORT in TERMT; inv TERMT. }
-      { rewrite SORT in OBST; inv OBST. }
+      { specialize (SIM _ _ STEP). des. rewrite SIM in KIND; inv KIND. }
       { des. guclo @behavior_indC_spec. econs 4. 3,4: eauto. all: auto. }
-      { specialize (SIM _ _ STEP KIND). des. eapply IHbehavior; eauto. }
+      { specialize (SIM _ _ STEP). des. eapply IHbehavior; eauto. }
       { gstep. econs 3; auto. }
       { remember false in SIM at 1. remember false in SIM at 1. clear Heqb.
         move SIM before CIH. revert_until SIM.
         induction SIM using @sim_ind; ii; ss; clarify.
         { rewrite SORT in TERMT; inv TERMT. }
-        { rewrite SORT in OBST; inv OBST. }
+        { specialize (SIM _ _ STEP). des. rewrite SIM in KIND; inv KIND. }
         { des. guclo @behavior_indC_spec. econs 4. 3,4: eauto. all: auto. }
-        { specialize (SIM _ _ STEP KIND). des. eapply IHbehavior; eauto. }
+        { specialize (SIM _ _ STEP). des. eapply IHbehavior; eauto. }
         { gstep. econs 3; auto. }
       }
     }
     { move SIM before CIH. revert_until SIM.
       induction SIM using @sim_ind; ii; ss; clarify.
       { rewrite SORT in TERMT; inv TERMT. }
-      { specialize (SIM _ _ STEP KIND). des. gstep. econs 5; eauto. gfinal. left. eauto. }
+      { specialize (SIM _ _ STEP). des. gstep. econs 5; eauto. gfinal. left. eauto. }
       { des. guclo @behavior_indC_spec. econs 4; eauto. }
-      { rewrite SORT0 in SORT; inv SORT. }
+      { specialize (SIM _ _ STEP). des. rewrite SIM in KIND; inv KIND. }
       { gstep. econs 3; auto. }
       { remember false in SIM at 1. remember false in SIM at 1. clear Heqb.
         move SIM before CIH. revert_until SIM.
         induction SIM using @sim_ind; ii; ss; clarify.
         { rewrite SORT in TERMT; inv TERMT. }
-        { specialize (SIM _ _ STEP KIND). des. gstep. econs 5; eauto. gfinal. left. eauto. }
+        { specialize (SIM _ _ STEP). des. gstep. econs 5; eauto. gfinal. left. eauto. }
         { des. guclo @behavior_indC_spec. econs 4; eauto. }
-        { rewrite SORT0 in SORT; inv SORT. }
+        { specialize (SIM _ _ STEP). des. rewrite SIM in KIND; inv KIND. }
         { gstep. econs 3; auto. }
       }
     }

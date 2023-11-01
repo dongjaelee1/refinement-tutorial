@@ -49,9 +49,9 @@ Section STS.
       }.
 
   Variant sort: Type :=
-    | internal
+    | normal
     | final (retv: Z)
-    | visible
+    (* | visible *)
     | undef
   .
 
@@ -62,6 +62,28 @@ Section STS.
         (* Note that step is a relation, not a function. In general, program execution can be non-deterministic. *)
         step: state -> l.(event) -> state -> Prop;
         state_sort: state -> sort;
+      }.
+
+  Record STS_valid (l: Label) (s: @STS l): Prop :=
+    mk_sts_valid {
+        normal_valid:
+        forall st0, (s.(state_sort) st0 = normal) ->
+               forall ev st1, (s.(step) st0 ev st1) ->
+                         forall ev' st1', (s.(step) st0 ev' st1') ->
+                                     (l.(event_kind) ev = l.(event_kind) ev');
+        final_valid:
+        forall st0 v, (s.(state_sort) st0 = final v) ->
+                 forall ev st1, (~ s.(step) st0 ev st1);
+
+        (* internal_valid: *)
+        (* forall st0, (s.(state_sort) st0 = internal) -> *)
+        (*        (forall ev st1, s.(step) st0 ev st1 -> l.(event_kind) ev = silentE); *)
+        (* visible_valid: *)
+        (* forall st0, (s.(state_sort) st0 = visible) -> *)
+        (*        (forall ev st1, s.(step) st0 ev st1 -> l.(event_kind) ev = observableE); *)
+        (* final_wf: forall st0 retv, *)
+        (*   (s.(state_sort) st0 = final retv) -> *)
+        (*   (forall ev st1, ~ s.(step) st0 ev st1); *)
       }.
 
 End STS.
@@ -85,7 +107,7 @@ Section BEH.
     state -> Prop :=
     | diverge_silent
         st0 ev st1
-        (SORT: ssort st0 = internal)
+        (SORT: ssort st0 = normal)
         (KIND: ekind ev = silentE)
         (STEP: step st0 ev st1)
         (DIV: diverge st1)
@@ -139,7 +161,7 @@ Section BEH.
   (* Silent case is inductive. *)
   | beh_silent
       st0 ev st1 tr
-      (SORT: ssort st0 = internal)
+      (SORT: ssort st0 = normal)
       (KIND: ekind ev = silentE)
       (STEP: step st0 ev st1)
       (NEXT: _behavior behavior st1 tr)
@@ -147,7 +169,7 @@ Section BEH.
     _behavior behavior st0 tr
   | beh_obs
       st0 ev st1 tl
-      (SORT: ssort st0 = visible)
+      (SORT: ssort st0 = normal)
       (KIND: ekind ev = observableE)
       (STEP: step st0 ev st1)
       (NEXT: behavior st1 tl)
@@ -187,7 +209,7 @@ Section BEH.
     ,
     P st tr)
   (SILENT: forall st0 ev st1 tr
-      (SORT: ssort st0 = internal)
+      (SORT: ssort st0 = normal)
       (KIND: ekind ev = silentE)
       (STEP: step st0 ev st1)
       (NEXT: behavior st1 tr)
@@ -195,7 +217,7 @@ Section BEH.
     ,
     P st0 tr)
   (OBS: forall st0 ev st1 tl
-      (SORT: ssort st0 = visible)
+      (SORT: ssort st0 = normal)
       (KIND: ekind ev = observableE)
       (STEP: step st0 ev st1)
       (NEXT: behavior st1 tl)
@@ -231,7 +253,7 @@ Section BEH.
       behavior_indC behavior st tr
     | beh_indC_silent
         st0 ev st1 tr
-        (SORT: ssort st0 = internal)
+        (SORT: ssort st0 = normal)
         (KIND: ekind ev = silentE)
         (STEP: step st0 ev st1)
         (NEXT: behavior st1 tr)
@@ -239,7 +261,7 @@ Section BEH.
       behavior_indC behavior st0 tr
     | beh_indC_obs
         st0 ev st1 tl
-        (SORT: ssort st0 = visible)
+        (SORT: ssort st0 = normal)
         (KIND: ekind ev = observableE)
         (STEP: step st0 ev st1)
         (NEXT: behavior st1 tl)
