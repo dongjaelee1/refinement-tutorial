@@ -26,7 +26,7 @@ Section TRACE.
   .
 
   CoInductive trace: Type :=
-  (* Termination can return a value, which is Z for our case. *)
+  (* Termination returns a value of type Z. *)
   | term (retv: Z)
   | spin
   | cons (hd: observable) (tl: trace)
@@ -34,7 +34,7 @@ Section TRACE.
 
 End TRACE.
 
-(* We assume a simple state transition system. *)
+(* We assume a simple labeled state transition system. *)
 Section STS.
 
   Variant kind: Type :=
@@ -42,48 +42,40 @@ Section STS.
     | observableE
   .
 
-  Record Label: Type :=
-    mk_label {
-        event: Type;
-        event_kind: event -> kind;
+  Record Event: Type :=
+    mk_event {
+        label: Type;
+        label_kind: label -> kind;
       }.
 
   Variant sort: Type :=
     | normal
     | final (retv: Z)
-    (* | visible *)
     | undef
   .
 
-  Record STS {l: Label}: Type :=
+  Record STS {e: Event}: Type :=
     mk_sts {
         state: Type;
         init: state;
         (* Note that step is a relation, not a function. In general, program execution can be non-deterministic. *)
-        step: state -> l.(event) -> state -> Prop;
+        step: state -> e.(label) -> state -> Prop;
         state_sort: state -> sort;
       }.
 
-  Record STS_valid (l: Label) (s: @STS l): Prop :=
+  Record STS_valid (e: Event) (s: @STS e): Prop :=
     mk_sts_valid {
         normal_valid:
         forall st0, (s.(state_sort) st0 = normal) ->
                forall ev st1, (s.(step) st0 ev st1) ->
                          forall ev' st1', (s.(step) st0 ev' st1') ->
-                                     (l.(event_kind) ev = l.(event_kind) ev');
+                                     (e.(label_kind) ev = e.(label_kind) ev');
         final_valid:
         forall st0 v, (s.(state_sort) st0 = final v) ->
                  forall ev st1, (~ s.(step) st0 ev st1);
-
-        (* internal_valid: *)
-        (* forall st0, (s.(state_sort) st0 = internal) -> *)
-        (*        (forall ev st1, s.(step) st0 ev st1 -> l.(event_kind) ev = silentE); *)
-        (* visible_valid: *)
-        (* forall st0, (s.(state_sort) st0 = visible) -> *)
-        (*        (forall ev st1, s.(step) st0 ev st1 -> l.(event_kind) ev = observableE); *)
-        (* final_wf: forall st0 retv, *)
-        (*   (s.(state_sort) st0 = final retv) -> *)
-        (*   (forall ev st1, ~ s.(step) st0 ev st1); *)
+        undef_valid:
+        forall st0, (s.(state_sort) st0 = undef) ->
+               forall ev st1, (~ s.(step) st0 ev st1);
       }.
 
 End STS.
@@ -91,11 +83,11 @@ End STS.
 (* We now define the behavior of a STS. *)
 Section BEH.
 
-  Context {label: Label}.
-  Local Notation event := label.(event).
-  Local Notation ekind := label.(event_kind).
+  Context {event: Event}.
+  Local Notation event := event.(event).
+  Local Notation ekind := event.(label_kind).
 
-  Context {prog: @STS label}.
+  Context {prog: @STS event}.
   Local Notation state := prog.(state).
   Local Notation init := prog.(init).
   Local Notation step := prog.(step).
@@ -302,10 +294,10 @@ End BEH.
 
 Section REF.
 
-  Context {label: Label}.
+  Context {event: Event}.
 
   (* Refinement is set inclusion, thus transitive. *)
-  Definition refines (tgt src: @STS label): Prop :=
+  Definition refines (tgt src: @STS event): Prop :=
     forall tr, (behavior tgt.(init) tr) -> (behavior src.(init) tr).
 
   Lemma refines_trans: Transitive refines.

@@ -6,11 +6,11 @@ Set Implicit Arguments.
 
 Section SIM.
 
-  Context {label: Label}.
-  Context {src: @STS label}.
-  Context {tgt: @STS label}.
+  Context {event: Event}.
+  Context {src: @STS event}.
+  Context {tgt: @STS event}.
 
-  Notation ekind := label.(event_kind).
+  Notation ekind := event.(label_kind).
   Notation ssort := src.(state_sort).
   Notation tsort := tgt.(state_sort).
 
@@ -322,13 +322,13 @@ End SIM.
 #[export] Hint Resolve sim_mon: paco.
 #[export] Hint Resolve cpn5_wcompat: paco.
 
-Definition simulation {l: Label} (src tgt: @STS l) := forall ps pt, sim (@eq Z) ps pt src.(init) tgt.(init).
+Definition simulation {l: Event} (src tgt: @STS l) := forall ps pt, sim (@eq Z) ps pt src.(init) tgt.(init).
 
 Section ADEQ.
 
-  Context {label: Label}.
-  Context {src: @STS label}.
-  Context {tgt: @STS label}.
+  Context {event: Event}.
+  Context {src: @STS event}.
+  Context {tgt: @STS event}.
 
   Lemma adequacy_spin
         (RR: Z -> Z -> Prop)
