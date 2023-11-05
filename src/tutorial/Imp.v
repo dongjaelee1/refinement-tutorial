@@ -1,6 +1,6 @@
 From sflib Require Import sflib.
 From Paco Require Import paco.
-From Tutorial Require Import Refinement FiniteSimulation.
+From Tutorial Require Import Refinement.
 From Coq Require Import Strings.String List.
 
 Set Implicit Arguments.
@@ -155,12 +155,12 @@ Notation "'ret' x" :=
 Notation "x := '&' l" :=
   (CMemLoad x l)
     (in custom com at level 0, x constr at level 0,
-        l at level 85, no associativity) : com_scope.
+        l at level 0, no associativity) : com_scope.
 Notation "'&' l := y" :=
   (CMemStore l y)
     (in custom com at level 0, l at level 0,
-        y at level 85, no associativity) : com_scope.
-Notation "x := f a" :=
+        y at level 0, no associativity) : com_scope.
+Notation "x ':=@' f a" :=
   (CExternal x f a)
     (in custom com at level 0, x constr at level 0,
         a at level 85, no associativity) : com_scope.
