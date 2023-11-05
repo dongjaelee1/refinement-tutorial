@@ -152,18 +152,20 @@ Notation "'ret' x" :=
   (CRet x)
     (in custom com at level 0,
         x at level 85) : com_scope.
-Notation "x := '&' l" :=
+Notation "x := '&<' l '>'" :=
   (CMemLoad x l)
     (in custom com at level 0, x constr at level 0,
         l at level 0, no associativity) : com_scope.
-Notation "'&' l := y" :=
+Notation "'&<' l '>' := y" :=
   (CMemStore l y)
     (in custom com at level 0, l at level 0,
         y at level 0, no associativity) : com_scope.
-Notation "x ':=@' f a" :=
+Notation "x ':=@' f '<' a '>'" :=
   (CExternal x f a)
     (in custom com at level 0, x constr at level 0,
         a at level 85, no associativity) : com_scope.
+
+Coercion Z.to_nat : Z >-> nat.
 
 
 (** ** Commands - semantics. *)
