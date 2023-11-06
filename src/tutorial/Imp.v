@@ -5,11 +5,16 @@ From Coq Require Import Strings.String List.
 
 Set Implicit Arguments.
 
-(* Reference: Software Foundations Volume 1, Imp.v *)
+(** ** Reference [1]: Software Foundations Volume 1, Imp.v *)
 
+(** We define an example STS called Imp. Most of the ideas are from [1]. 
+    Imp is a simple imperative language with a simple memory model and 
+    infinite registers (namely, local environment).
+    It has two kinds of events: memory events and external interactions.
+ *)
 
-(** ** A simple memory model for Imp. *)
 Module Mem.
+  (** A simple memory model for Imp. *)
 
   Definition t := nat -> option Z.
 
@@ -28,8 +33,8 @@ Module Mem.
 End Mem.
 
 
-(** ** A simple register (local environment) for Imp. *)
 Module Reg.
+  (** A simple register (local environment) for Imp. *)
 
   Definition t := string -> option Z.
 
@@ -55,7 +60,9 @@ Definition Imp_Event (ekind : Imp_label -> kind) : Event :=
   mk_event ekind.
 
 
-(** ** Expressions - syntax. *)
+
+(** ** Expressions. *)
+(** Syntax. *)
 Variant bin_op : Type :=
   | BOpAdd
   | BOpSub
@@ -67,8 +74,7 @@ Inductive aexp : Type :=
 | AId (x : string)
 | ABinOp (op : bin_op) (a1 a2 : aexp).
 
-
-(** ** Expressions - Notations. *)
+(** Notations. *)
 (* You don't need to understand this part. *)
 
 Coercion AId : string >-> aexp.
@@ -90,8 +96,7 @@ Notation "x * y"   := (ABinOp BOpMult x y) (in custom com at level 40, left asso
 
 Open Scope com_scope.
 
-
-(** ** Expressions - semantics. *)
+(** Semantics. *)
 Reserved Notation " '[' r ',' a ']' '==>' n" (at level 90, left associativity).
 
 Definition bin_op_eval (op : bin_op) (a1 a2 : Z) : Z :=
@@ -114,7 +119,9 @@ Inductive aeval : Reg.t -> aexp -> Z -> Prop :=
 where " '[' r ',' a ']' '==>' n" := (aeval r a n) : type_scope.
 
 
-(** ** Commands - syntax. *)
+
+(** ** Commands. *)
+(** Syntax. *)
 Inductive com : Type :=
 | CSkip
 | CAsgn (x : string) (a : aexp)
@@ -126,8 +133,7 @@ Inductive com : Type :=
 | CMemStore (l : nat) (a : aexp)
 | CExternal (x : string) (name : string) (args : list aexp).
 
-
-(** ** Commands - notations. *)
+(** Notations. *)
 (* You don't need to understand this part. *)
 
 Notation "'skip'"  :=
@@ -168,7 +174,7 @@ Notation "x ':=@' f '<' a '>'" :=
 Coercion Z.to_nat : Z >-> nat.
 
 
-(** ** Commands - semantics. *)
+(** Semantics. *)
 Inductive cont :=
 | Kstop : cont
 | Kseq : com -> cont -> cont
@@ -241,6 +247,7 @@ Variant step : Imp_state -> Imp_label -> Imp_state -> Prop :=
 Definition Imp_init (c : com) : Imp_state := (Mem.init, Normal Reg.init c Kstop).
 
 
+
 (** ** Imp - STS. *)
 Definition Imp_sort (s : Imp_state) : sort :=
   match s with
@@ -249,8 +256,8 @@ Definition Imp_sort (s : Imp_state) : sort :=
   | (_, Undef) => undef
   end.
 
-Definition Imp_STS (ekind : Imp_label -> kind) (c : com) : STS :=
-  mk_sts (Imp_Event ekind) (Imp_init c) ceval Imp_sort.
+Definition Imp_STS (ekind : Imp_label -> kind) : STS :=
+  mk_sts (Imp_Event ekind) step Imp_sort.
 
 Definition ekind_memory (l : Imp_label) : kind :=
   match l with
@@ -270,5 +277,10 @@ Definition ekind_external (l : Imp_label) : kind :=
             end
   end.
 
-Definition Imp_STS1 c : STS := Imp_STS ekind_memory c.
-Definition Imp_STS2 c : STS := Imp_STS ekind_external c.
+(** We define two semantics. One where memory events are also visible: *)
+Definition Imp_STS1 : STS := Imp_STS ekind_memory.
+Definition Imp_Program1 (c : com) : Program Imp_STS1 := mk_program Imp_STS1 (Imp_init c).
+
+(** And the other where memory events are not visible: *)
+Definition Imp_STS2 : STS := Imp_STS ekind_external.
+Definition Imp_Program2 (c : com) : Program Imp_STS2 := mk_program Imp_STS2 (Imp_init c).

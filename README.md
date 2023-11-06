@@ -1,5 +1,5 @@
 # refinement-tutorial
-Tutorial for refinement based verification
+Tutorial for refinement-based verification
 
 Work In Progress.
 
@@ -16,9 +16,10 @@ make build -j
 
 ## Structure
 All the files are in `src/tutorial/`.
-1. `Refinement.v`
-2. `Imp.v`
-3. `FiniteSimulation.v`
-4. `Example1.v`
-6. `Simulation.v`
-7. `Example2.v`
+`Refinement.v`
+-> `Imp.v`
+-> `FiniteSimulation.v`
+-> `Example1.v`
+-> `Example2.v`
+-> `Simulation.v`
+-> `Example3.v`
