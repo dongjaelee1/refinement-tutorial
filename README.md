@@ -16,10 +16,17 @@ make build -j
 
 ## Structure
 All the files are in `src/tutorial/`.
+
 `Refinement.v`
+
 -> `Imp.v`
+
 -> `FiniteSimulation.v`
+
 -> `Example1.v`
+
 -> `Example2.v`
+
 -> `Simulation.v`
+
 -> `Example3.v`

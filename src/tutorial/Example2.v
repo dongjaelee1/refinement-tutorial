@@ -98,7 +98,7 @@ Section EX.
    *)
 
   Hypothesis adequacy: forall {l: Event} {sem: @STS l} (src tgt: Program sem),
-      simulation src tgt -> refines tgt src.
+      simulation src tgt -> refines src tgt.
 
   (* DIV2. Now we can prove the previous example, by coinduction. *)
   Definition src6 : com :=
