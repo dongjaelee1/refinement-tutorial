@@ -1,14 +1,11 @@
 From Coq Require Import Classes.RelationClasses.
 From sflib Require Import sflib.
 From Paco Require Import paco.
-From Coq Require Export ZArith.
 
 Set Implicit Arguments.
-Open Scope Z_scope.
 
 (** Program refinement is an approach in program verification, 
-   where one verifies that every possible behavior of a program 
-   (called the target or the implementation) 
+   where one verifies that every possible behavior of a program (called the target or the implementation) 
    is also possible by another program (called the source or the spec).
    Usually, behavior of a program is defined as a set of traces, 
    where a trace is a stream of observable events of a program, 
@@ -26,8 +23,8 @@ Section TRACE.
   .
 
   CoInductive trace: Type :=
-  (* Termination returns a value of type Z. *)
-  | term (retv: Z)
+  (* Termination returns a value of type nat. *)
+  | term (retv: nat)
   | spin
   | cons (hd: observable) (tl: trace)
   .
@@ -37,7 +34,7 @@ End TRACE.
 Section STS.
   (** We define semantics of programs using a simple labeled state transition system. *)
 
-  (** We assume two kinds of events, silent and observable. *)
+  (** We assume that events can be classifies into two kinds, silent and observable. *)
   Variant kind: Type :=
     | silentE
     | observableE
@@ -50,24 +47,25 @@ Section STS.
       }.
 
   (** We assume that a state can be classified into 
-      normal, final (no more steps), or undef ('transition is undefined') 
+      normal, final (no more steps), or undef ('transition is undefined').
+      Also, we say that a program can exhibit UB (Undefined Behavior) if it can reach a undef state,
+      and UB is considered to be the set of every possible trace.
    *)
   Variant sort: Type :=
     | normal
-    | final (retv: Z)
+    | final (retv: nat)
     | undef
   .
 
   Record STS {e: Event}: Type :=
     mk_sts {
         state: Type;
-        (* Note that we assume that step is a relation, 
-           in order to allow for nondeterminism. *)
+        (* Note that step is a relation, in order to allow nondeterminism. *)
         step: state -> e.(label) -> state -> Prop;
         state_sort: state -> sort;
       }.
 
-  (* Properties we assume for a STS, as a part of specification. *)
+  (* Properties we assume for a STS. *)
   Record STS_valid (e: Event) (s: @STS e): Prop :=
     mk_sts_valid {
         normal_valid:
@@ -142,9 +140,10 @@ Section BEH.
   Hint Resolve cpn1_wcompat: paco.
 
   (** Behavior is a mixed inductive-coinductive definition.
-      Specifically, silent steps are allowed only finite times using inductive definition ('_behavior')
-      (infinite silent steps case is treated as divergence),
-      and observable events are allowed infinitely many times ('behavior').
+      Specifically, consecutive silent steps are either 
+      allowed only finite times by giving an inductive definition (`_behavior'),
+      or treated as divergence, in the consecutive infinite silent steps case.
+      On the other hand, observable events are allowed infinitely many times by giving a coinductive definition (`behavior').
    *)
   Inductive _behavior
             (behavior: state -> trace -> Prop)
@@ -161,6 +160,7 @@ Section BEH.
       (SPIN: diverge st)
     :
     _behavior behavior st spin
+  (* If a state is undefined, we consider that it can exhibit UB, i.e. its behavior is the set of all traces. *)
   | beh_ub
       st tr
       (SORT: ssort st = undef)
@@ -315,7 +315,8 @@ End BEH.
 #[global] Hint Resolve cpn2_wcompat: paco.
 
 Section REF.
-  (** Refinement is simply a set inclusion. *)
+  (** Refinement is simply the set inclusion. 
+      This implies that if the source can exhibit UB, any program refines it. *)
 
   Context {event: Event}.
   Context {sem: @STS event}.

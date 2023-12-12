@@ -6,8 +6,7 @@ Set Implicit Arguments.
 
 Section SIM.
   (** We define a sound simulation. 
-      There are many styles in defining a termination sensitive simulation,
-      and we follow the one presented in:
+      There are many styles in defining a termination sensitive simulation, and we follow the one presented in:
       Stuttering for Free (Cho et al., OOPSLA'23, https://doi.org/10.1145/3622857).
    *)
 
@@ -18,25 +17,24 @@ Section SIM.
   Notation sort := sem.(state_sort).
 
   (** This simulation ensures *finite* stuttering by allowing src/tgt to stutter only inductively.
-      One can see that each constructors taking steps are defined inductively with '_sim'.
+      One can see that each constructors taking steps are defined inductively with `_sim'.
       However, unlike the finite simulation, this sim is equipped with two Boolean flags, 
       which are set to true when src/tgt side makes progress (i.e. takes a step).
-      Then coinductive progress is only allowed when both flags are true (sim_progress).
-      In other words, if one wants to prove by coinduction, 
-      one must show that both the src and the tgt already made progress.
+      Then coinductive progress is only allowed when both flags are true (`sim_progress').
+      In other words, if one wants to prove by coinduction, one must show that both the src and the tgt already made progress.
    *)
   Inductive _sim
-            (sim: forall (RR: Z -> Z -> Prop), bool -> bool -> sem.(state) -> sem.(state) -> Prop)
-            (RR: Z -> Z -> Prop) (p_src p_tgt: bool)
+            (sim: bool -> bool -> sem.(state) -> sem.(state) -> Prop)
+            (p_src p_tgt: bool)
     :
     sem.(state) -> sem.(state) -> Prop :=
   | sim_term
       st_src st_tgt r_src r_tgt
       (TERMS: sort st_src = final r_src)
       (TERMT: sort st_tgt = final r_tgt)
-      (SIM: RR r_src r_tgt)
+      (SIM: r_src = r_tgt)
     :
-    _sim sim RR p_src p_tgt st_src st_tgt
+    _sim sim p_src p_tgt st_src st_tgt
   | sim_obs
       st_src0 st_tgt0
       (OBSS: sort st_src0 = normal)
@@ -45,48 +43,47 @@ Section SIM.
           (sem.(step) st_tgt0 ev st_tgt1) ->
           (ekind ev = observableE) /\
           exists st_src1, (sem.(step) st_src0 ev st_src1) /\
-                       (_sim sim RR true true st_src1 st_tgt1))
+                       (_sim sim true true st_src1 st_tgt1))
     :
-    _sim sim RR p_src p_tgt st_src0 st_tgt0
+    _sim sim p_src p_tgt st_src0 st_tgt0
   | sim_silentS
       st_src0 st_tgt
       (SORT: sort st_src0 = normal)
       (SIM: exists ev st_src1,
           (sem.(step) st_src0 ev st_src1) /\
             (ekind ev = silentE) /\
-            (_sim sim RR true p_tgt st_src1 st_tgt))
+            (_sim sim true p_tgt st_src1 st_tgt))
     :
-    _sim sim RR p_src p_tgt st_src0 st_tgt
+    _sim sim p_src p_tgt st_src0 st_tgt
   | sim_silentR
       st_src st_tgt0
       (SORT: sort st_tgt0 = normal)
       (SIM: forall ev st_tgt1,
           (sem.(step) st_tgt0 ev st_tgt1) ->
           (ekind ev = silentE) /\
-          (_sim sim RR p_src true st_src st_tgt1))
+          (_sim sim p_src true st_src st_tgt1))
     :
-    _sim sim RR p_src p_tgt st_src st_tgt0
+    _sim sim p_src p_tgt st_src st_tgt0
   | sim_ub
       st_src st_tgt
       (SORT: sort st_src = undef)
     :
-    _sim sim RR p_src p_tgt st_src st_tgt
+    _sim sim p_src p_tgt st_src st_tgt
   | sim_progress
       st_src st_tgt
-      (SIM: sim RR false false st_src st_tgt)
+      (SIM: sim false false st_src st_tgt)
       (PS: p_src = true)
       (PT: p_tgt = true)
     :
-    _sim sim RR p_src p_tgt st_src st_tgt.
+    _sim sim p_src p_tgt st_src st_tgt.
 
-  (* Coq fails to generate a correct induction lemma. *)
-  Lemma _sim_ind2 (sim: forall (RR: Z -> Z -> Prop), bool -> bool -> sem.(state) -> sem.(state) -> Prop)
-        (RR: Z -> Z -> Prop)
+  (* We need to define a induction lemma because Coq fails to generate a correct one. *)
+  Lemma _sim_ind2 (sim: bool -> bool -> sem.(state) -> sem.(state) -> Prop)
         (P: bool -> bool -> sem.(state) -> sem.(state) -> Prop)
   (TERM: forall p_src p_tgt st_src st_tgt r_src r_tgt
       (TERMS: sort st_src = final r_src)
       (TERMT: sort st_tgt = final r_tgt)
-      (SIM: RR r_src r_tgt)
+      (SIM: r_src = r_tgt)
     ,
     P p_src p_tgt st_src st_tgt)
   (OBS: forall p_src p_tgt st_src0 st_tgt0
@@ -95,21 +92,21 @@ Section SIM.
       (SIM: forall ev st_tgt1, (sem.(step) st_tgt0 ev st_tgt1) ->
                           (ekind ev = observableE) /\
                        exists st_src1, (sem.(step) st_src0 ev st_src1) /\
-                                    (_sim sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
+                                    (_sim sim true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
     P p_src p_tgt st_src0 st_tgt0)
   (SILENTL: forall p_src p_tgt st_src0 st_tgt
       (SORT: sort st_src0 = normal)
       (SIM: exists ev st_src1, (sem.(step) st_src0 ev st_src1) /\
                             (ekind ev = silentE) /\
-                       (_sim sim RR true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
+                       (_sim sim true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
     ,
     P p_src p_tgt st_src0 st_tgt)
   (SILENTR: forall p_src p_tgt st_src st_tgt0
       (SORT: sort st_tgt0 = normal)
       (SIM: forall ev st_tgt1, (sem.(step) st_tgt0 ev st_tgt1) ->
                           (ekind ev = silentE) /\
-                       ((_sim sim RR p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1)))
+                       ((_sim sim p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1)))
     ,
     P p_src p_tgt st_src st_tgt0)
   (UB: forall p_src p_tgt st_src st_tgt
@@ -117,14 +114,14 @@ Section SIM.
     ,
     P p_src p_tgt st_src st_tgt)
   (PROG: forall p_src p_tgt st_src st_tgt
-      (SIM: sim RR false false st_src st_tgt)
+      (SIM: sim false false st_src st_tgt)
       (PS: p_src = true)
       (PT: p_tgt = true)
     ,
       P p_src p_tgt st_src st_tgt)
       :
       forall p_src p_tgt st_src st_tgt
-        (SIM: _sim sim RR p_src p_tgt st_src st_tgt),
+        (SIM: _sim sim p_src p_tgt st_src st_tgt),
         P p_src p_tgt st_src st_tgt.
   Proof.
     fix IH 5. i. inv SIM.
@@ -136,10 +133,10 @@ Section SIM.
     - eapply PROG; eauto.
   Qed.
 
-  Definition sim: forall (RR: Z -> Z -> Prop), bool -> bool -> sem.(state) -> sem.(state) -> Prop := paco5 _sim bot5.
+  Definition sim: bool -> bool -> sem.(state) -> sem.(state) -> Prop := paco4 _sim bot4.
 
   (* Boilerplate codes for paco. *)
-  Lemma sim_mon: monotone5 _sim.
+  Lemma sim_mon: monotone4 _sim.
   Proof.
     ii. induction IN using _sim_ind2.
     - econs 1; eauto.
@@ -150,12 +147,12 @@ Section SIM.
     - econs 6; eauto.
   Qed.
 
-  Lemma sim_ind (RR: Z -> Z -> Prop)
+  Lemma sim_ind
         (P: bool -> bool -> sem.(state) -> sem.(state) -> Prop)
   (TERM: forall p_src p_tgt st_src st_tgt r_src r_tgt
       (TERMS: sort st_src = final r_src)
       (TERMT: sort st_tgt = final r_tgt)
-      (SIM: RR r_src r_tgt)
+      (SIM: r_src = r_tgt)
     ,
     P p_src p_tgt st_src st_tgt)
   (OBS: forall p_src p_tgt st_src0 st_tgt0
@@ -164,21 +161,21 @@ Section SIM.
       (SIM: forall ev st_tgt1, (sem.(step) st_tgt0 ev st_tgt1) ->
                           (ekind ev = observableE) /\
                        exists st_src1, (sem.(step) st_src0 ev st_src1) /\
-                                    (sim RR true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
+                                    (sim true true st_src1 st_tgt1) /\ (P true true st_src1 st_tgt1))
     ,
     P p_src p_tgt st_src0 st_tgt0)
   (SILENTL: forall p_src p_tgt st_src0 st_tgt
       (SORT: sort st_src0 = normal)
       (SIM: exists ev st_src1, (sem.(step) st_src0 ev st_src1) /\
                             (ekind ev = silentE) /\
-                       (sim RR true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
+                       (sim true p_tgt st_src1 st_tgt) /\ (P true p_tgt st_src1 st_tgt))
     ,
     P p_src p_tgt st_src0 st_tgt)
   (SILENTR: forall p_src p_tgt st_src st_tgt0
       (SORT: sort st_tgt0 = normal)
       (SIM: forall ev st_tgt1, (sem.(step) st_tgt0 ev st_tgt1) ->
                           (ekind ev = silentE) /\
-                       ((sim RR p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1)))
+                       ((sim p_src true st_src st_tgt1) /\ (P p_src true st_src st_tgt1)))
     ,
     P p_src p_tgt st_src st_tgt0)
   (UB: forall p_src p_tgt st_src st_tgt
@@ -186,14 +183,14 @@ Section SIM.
     ,
     P p_src p_tgt st_src st_tgt)
   (PROG: forall p_src p_tgt st_src st_tgt
-      (SIM: sim RR false false st_src st_tgt)
+      (SIM: sim false false st_src st_tgt)
       (PS: p_src = true)
       (PT: p_tgt = true)
     ,
       P p_src p_tgt st_src st_tgt)
       :
       forall p_src p_tgt st_src st_tgt
-        (SIM: sim RR p_src p_tgt st_src st_tgt),
+        (SIM: sim p_src p_tgt st_src st_tgt),
         P p_src p_tgt st_src st_tgt.
   Proof.
     i. eapply _sim_ind2; i; eauto.
@@ -206,25 +203,25 @@ Section SIM.
   Hint Constructors _sim: core.
   Hint Unfold sim: core.
   Hint Resolve sim_mon: paco.
-  Hint Resolve cpn5_wcompat: paco.
+  Hint Resolve cpn4_wcompat: paco.
 
   (** Upto properties.
       These are useful for doing coinductive proofs with paco.
-      You don't need to understand them now; we will revisit them later.
+      You don't need to understand them now.
    *)
 
   Variant sim_indC
-          (sim: forall (RR: Z -> Z -> Prop), bool -> bool -> sem.(state) -> sem.(state) -> Prop)
-          (RR: Z -> Z -> Prop) p_src p_tgt
+          (sim: bool -> bool -> sem.(state) -> sem.(state) -> Prop)
+          p_src p_tgt
     :
     sem.(state) -> sem.(state) -> Prop :=
     | sim_indC_term
         st_src st_tgt r_src r_tgt
         (TERMS: sort st_src = final r_src)
         (TERMT: sort st_tgt = final r_tgt)
-        (SIM: RR r_src r_tgt)
+        (SIM: r_src = r_tgt)
       :
-      sim_indC sim RR p_src p_tgt st_src st_tgt
+      sim_indC sim p_src p_tgt st_src st_tgt
     | sim_indC_obs
         st_src0 st_tgt0
         (OBSS: sort st_src0 = normal)
@@ -232,39 +229,39 @@ Section SIM.
         (SIM: forall ev st_tgt1, (sem.(step) st_tgt0 ev st_tgt1) ->
                             (ekind ev = observableE) /\
                          exists st_src1, (sem.(step) st_src0 ev st_src1) /\
-                                      (_sim sim RR true true st_src1 st_tgt1))
+                                      (_sim sim true true st_src1 st_tgt1))
       :
-      sim_indC sim RR p_src p_tgt st_src0 st_tgt0
+      sim_indC sim p_src p_tgt st_src0 st_tgt0
     | sim_indC_silentL
         st_src0 st_tgt
         (SORT: sort st_src0 = normal)
         (SIM: exists ev st_src1, (sem.(step) st_src0 ev st_src1) /\
                               (ekind ev = silentE) /\
-                         (sim RR true p_tgt st_src1 st_tgt))
+                         (sim true p_tgt st_src1 st_tgt))
       :
-      sim_indC sim RR p_src p_tgt st_src0 st_tgt
+      sim_indC sim p_src p_tgt st_src0 st_tgt
     | sim_indC_silentR
         st_src st_tgt0
         (SORT: sort st_tgt0 = normal)
         (SIM: forall ev st_tgt1, (sem.(step) st_tgt0 ev st_tgt1) ->
                             (ekind ev = silentE) /\
-                         (sim RR p_src true st_src st_tgt1))
+                         (sim p_src true st_src st_tgt1))
       :
-      sim_indC sim RR p_src p_tgt st_src st_tgt0
+      sim_indC sim p_src p_tgt st_src st_tgt0
     | sim_indC_ub
         st_src st_tgt
         (UB: sort st_src = undef)
       :
-      sim_indC sim RR p_src p_tgt st_src st_tgt
+      sim_indC sim p_src p_tgt st_src st_tgt
     | sim_indC_progress
         st_src st_tgt
-        (SIM: sim RR false false st_src st_tgt)
+        (SIM: sim false false st_src st_tgt)
         (PS: p_src = true)
         (PT: p_tgt = true)
       :
-      sim_indC sim RR p_src p_tgt st_src st_tgt.
+      sim_indC sim p_src p_tgt st_src st_tgt.
 
-  Lemma sim_indC_mon: monotone5 sim_indC.
+  Lemma sim_indC_mon: monotone4 sim_indC.
   Proof.
     ii. inv IN.
     all: try (econs; eauto; fail).
@@ -275,46 +272,45 @@ Section SIM.
 
   Hint Resolve sim_indC_mon: paco.
 
-  Lemma sim_indC_wrespectful: wrespectful5 _sim sim_indC.
+  Lemma sim_indC_wrespectful: wrespectful4 _sim sim_indC.
   Proof.
     econs; eauto with paco.
     i. inv PR; eauto.
-    - econs 2; eauto. i. specialize (SIM _ _ H). des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
-    - econs 3; eauto. des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
-    - econs 4; eauto. i. specialize (SIM _ _ H). des. splits; auto. eapply sim_mon; eauto. i. eapply rclo5_base. auto.
-    - eapply sim_mon; eauto. i. eapply rclo5_base. auto.
+    - econs 2; eauto. i. specialize (SIM _ _ H). des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo4_base. auto.
+    - econs 3; eauto. des. esplits; eauto. eapply sim_mon; eauto. i. eapply rclo4_base. auto.
+    - econs 4; eauto. i. specialize (SIM _ _ H). des. splits; auto. eapply sim_mon; eauto. i. eapply rclo4_base. auto.
+    - eapply sim_mon; eauto. i. eapply rclo4_base. auto.
   Qed.
 
-  Lemma sim_indC_spec: sim_indC <6= gupaco5 _sim (cpn5 _sim).
+  Lemma sim_indC_spec: sim_indC <5= gupaco4 _sim (cpn4 _sim).
   Proof.
-    i. eapply wrespect5_uclo; eauto with paco. eapply sim_indC_wrespectful.
+    i. eapply wrespect4_uclo; eauto with paco. eapply sim_indC_wrespectful.
   Qed.
 
   Variant sim_progressC
-          (sim: forall (RR: Z -> Z -> Prop), bool -> bool -> sem.(state) -> sem.(state) -> Prop)
-          (RR: Z -> Z -> Prop)
+          (sim: bool -> bool -> sem.(state) -> sem.(state) -> Prop)
     :
     bool -> bool -> sem.(state) -> sem.(state) -> Prop :=
     | sim_progressC_intro
         ps0 ps1 pt0 pt1 st_src st_tgt
-        (SIM: sim RR ps1 pt1 st_src st_tgt)
+        (SIM: sim ps1 pt1 st_src st_tgt)
         (SRC: ps1 = true -> ps0 = true)
         (TGT: pt1 = true -> pt0 = true)
       :
-      sim_progressC sim RR ps0 pt0 st_src st_tgt.
+      sim_progressC sim ps0 pt0 st_src st_tgt.
 
-  Lemma sim_progressC_mon: monotone5 sim_progressC.
+  Lemma sim_progressC_mon: monotone4 sim_progressC.
   Proof.
     ii. inv IN. econs; eauto.
   Qed.
 
   Hint Resolve sim_progressC_mon: paco.
 
-  Lemma sim_progressC_wrespectful: wrespectful5 _sim sim_progressC.
+  Lemma sim_progressC_wrespectful: wrespectful4 _sim sim_progressC.
   Proof.
     econs; eauto with paco.
     i. inv PR. apply GF in SIM.
-    generalize dependent x1. generalize dependent x2.
+    generalize dependent x0. generalize dependent x1.
     induction SIM using _sim_ind2; i; eauto.
     - econs 2; auto. i. specialize (SIM _ _ H). des. esplits; eauto.
     - econs 3; auto. des. esplits; eauto.
@@ -323,40 +319,42 @@ Section SIM.
       hexploit TGT; clear TGT; auto; i; clarify.
       hexploit SRC; clear SRC; auto; i; clarify.
       eapply sim_mon. econs 6; eauto.
-      i. eapply rclo5_base. auto.
+      i. eapply rclo4_base. auto.
   Qed.
 
-  Lemma sim_progressC_spec: sim_progressC <6= gupaco5 _sim (cpn5 _sim).
+  Lemma sim_progressC_spec: sim_progressC <5= gupaco4 _sim (cpn4 _sim).
   Proof.
-    i. eapply wrespect5_uclo; eauto with paco. eapply sim_progressC_wrespectful.
+    i. eapply wrespect4_uclo; eauto with paco. eapply sim_progressC_wrespectful.
   Qed.
 
 End SIM.
 #[export] Hint Constructors _sim: core.
 #[export] Hint Unfold sim: core.
 #[export] Hint Resolve sim_mon: paco.
-#[export] Hint Resolve cpn5_wcompat: paco.
+#[export] Hint Resolve cpn4_wcompat: paco.
 
 Definition simulation {l: Event} {sem: @STS l} (src tgt: Program sem) :=
-  forall ps pt, sim (@eq Z) ps pt src.(init) tgt.(init).
+  forall ps pt, sim ps pt src.(init) tgt.(init).
 
 Section ADEQ.
-  (** We can prove that the simulation is sound, i.e. the adequacy theorem holds. *)
+  (** We can prove that the simulation is sound, i.e. the adequacy theorem holds.
+     Following the proofs should be helpful in understanding why our definition of simulation is sound, 
+     and also how proofs using paco are carried out. 
+   *)
 
   Context {event: Event}.
   Context {sem: @STS event}.
 
   Lemma adequacy_spin
-        (RR: Z -> Z -> Prop)
         ps pt
         (st_src: sem.(state))
         (st_tgt: sem.(state))
-        (SIM: sim RR ps pt st_src st_tgt)
+        (SIM: sim ps pt st_src st_tgt)
         (SPIN: diverge st_tgt)
     :
     diverge st_src.
   Proof.
-    ginit. revert_until RR. gcofix CIH. i. revert SPIN.
+    ginit. revert_until sem. gcofix CIH. i. revert SPIN.
     induction SIM using @sim_ind; i; clarify.
     { exfalso. punfold SPIN. inv SPIN. 1,2: rewrite SORT in TERMT; ss. }
     { exfalso. punfold SPIN. inv SPIN.
@@ -389,7 +387,7 @@ Section ADEQ.
         (st_src0: sem.(state))
         (st_tgt0: sem.(state))
         ps pt
-        (SIM: sim eq ps pt st_src0 st_tgt0)
+        (SIM: sim ps pt st_src0 st_tgt0)
     :
     forall tr, (behavior st_tgt0 tr) -> (behavior st_src0 tr).
   Proof.

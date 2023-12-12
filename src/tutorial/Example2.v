@@ -8,8 +8,7 @@ Section SIM.
   (** We will define a simulation relation that covers diverging programs.
       This kind of simulations are called 'termination sensitive' or 'termination preserving'.
       A correct definition involves coinduction and some nontrivial details.
-      So before we get to that, let us examine a *wrong* definition first 
-      and practice coinductive proofs.
+      So before we get to that, let us examine a *wrong* definition first and practice coinductive proofs.
    *)
 
   Context {event: Event}.
@@ -18,21 +17,20 @@ Section SIM.
   Notation ekind := event.(label_kind).
   Notation sort := sem.(state_sort).
 
-  (* This definition is almost the same as 'sim' defined in FiniteSimulation.v, 
+  (* This definition is almost the same as `sim' defined in FiniteSimulation.v, 
      but it is a coinductive definition, not an inductive one.
    *)
   Variant _sim
-          (sim: forall (RR: Z -> Z -> Prop), sem.(state) -> sem.(state) -> Prop)
-          (RR: Z -> Z -> Prop)
+          (sim: sem.(state) -> sem.(state) -> Prop)
     :
     sem.(state) -> sem.(state) -> Prop :=
     | sim_term
         st_src st_tgt r_src r_tgt
         (TERMS: sort st_src = final r_src)
         (TERMT: sort st_tgt = final r_tgt)
-        (SIM: RR r_src r_tgt)
+        (SIM: r_src = r_tgt)
       :
-      _sim sim RR st_src st_tgt
+      _sim sim st_src st_tgt
     | sim_obs
         st_src0 st_tgt0
         (OBSS: sort st_src0 = normal)
@@ -41,36 +39,36 @@ Section SIM.
             (sem.(step) st_tgt0 ev st_tgt1) ->
             (ekind ev = observableE) /\
               exists st_src1, (sem.(step) st_src0 ev st_src1) /\
-                           (sim RR st_src1 st_tgt1))
+                           (sim st_src1 st_tgt1))
       :
-      _sim sim RR st_src0 st_tgt0
+      _sim sim st_src0 st_tgt0
     | sim_silentS
         st_src0 st_tgt
         (SORT: sort st_src0 = normal)
         (SIM: exists ev st_src1,
             (sem.(step) st_src0 ev st_src1) /\
               (ekind ev = silentE) /\
-              (sim RR st_src1 st_tgt))
+              (sim st_src1 st_tgt))
       :
-      _sim sim RR st_src0 st_tgt
+      _sim sim st_src0 st_tgt
     | sim_silentR
         st_src st_tgt0
         (SORT: sort st_tgt0 = normal)
         (SIM: forall ev st_tgt1,
             (sem.(step) st_tgt0 ev st_tgt1) ->
             (ekind ev = silentE) /\
-              (sim RR st_src st_tgt1))
+              (sim st_src st_tgt1))
       :
-      _sim sim RR st_src st_tgt0
+      _sim sim st_src st_tgt0
     | sim_ub
         st_src st_tgt
         (SORT: sort st_src = undef)
       :
-      _sim sim RR st_src st_tgt.
+      _sim sim st_src st_tgt.
 
-  Definition sim: forall (RR: Z -> Z -> Prop), sem.(state) -> sem.(state) -> Prop := paco3 _sim bot3.
+  Definition sim: sem.(state) -> sem.(state) -> Prop := paco2 _sim bot2.
 
-  Lemma sim_mon: monotone3 _sim.
+  Lemma sim_mon: monotone2 _sim.
   Proof.
     ii. inv IN.
     - econs 1; eauto.
@@ -84,17 +82,19 @@ End SIM.
 #[local] Hint Constructors _sim: core.
 #[local] Hint Unfold sim: core.
 #[local] Hint Resolve sim_mon: paco.
-#[local] Hint Resolve cpn3_wcompat: paco.
+#[local] Hint Resolve cpn2_wcompat: paco.
 
 Definition simulation {l: Event} {sem: @STS l} (src tgt: Program sem) :=
-  sim (@eq Z) src.(init) tgt.(init).
+  sim src.(init) tgt.(init).
+
+
 
 From Coq Require Import Strings.String List.
 From Tutorial Require Import Imp.
 
 Section EX.
   (** Assuming that the above coinductive simulation is correct (i.e. adequacy theorem holds), 
-      we can prove refinement between possibly diverging programs. 
+      we can prove refinements between possibly diverging programs. 
    *)
 
   Hypothesis adequacy: forall {l: Event} {sem: @STS l} (src tgt: Program sem),
@@ -147,9 +147,9 @@ Section EX.
          | ss; exists (inr LInternal); eexists; splits; ss; [repeat econs | left]
         ]).
 
-  Goal refines (Imp_Program2 src6) (Imp_Program2 tgt6).
+  Goal refines (Imp_Program_Ext src6) (Imp_Program_Ext tgt6).
   Proof.
-    apply adequacy. unfold simulation, Imp_Program2, Imp_STS2, src6, tgt6, Imp_init. ss.
+    apply adequacy. unfold simulation, Imp_Program_Ext, Imp_STS_Ext, src6, tgt6, Imp_init. ss.
     (* We can use paco tactics to proceed. *)
     pfold. econs 4. ss.
     ss. i. inv H. 2: solve_tgt_ub. step_tgt_silent0. left.
@@ -193,9 +193,9 @@ Section EX.
       right. eapply CIH.
       Unshelve. exact 0.
     - (* Leftover undef case. *)
-      exfalso. destruct (Z.eqb n 0) eqn:CASES.
-      + eapply UNDEF. eapply E_WhileFalse. repeat econs. apply Z.eqb_eq; auto.
-      + eapply UNDEF. eapply E_WhileTrue. repeat econs. apply Z.eqb_neq; auto.
+      exfalso. destruct (Nat.eqb n 0) eqn:CASES.
+      + eapply UNDEF. eapply E_WhileFalse. repeat econs. apply PeanoNat.Nat.eqb_eq. auto.
+      + eapply UNDEF. eapply E_WhileTrue. repeat econs. apply PeanoNat.Nat.eqb_neq; auto.
   Qed.
 
 
@@ -205,7 +205,8 @@ Section EX.
    *)
 
   (* CEX1. The src terminates, but the tgt diverges. Prove this by coinduction. *)
-  Definition src1 : com := <{ ret 0 }>.
+  Definition src1 : com :=
+    <{ ret 0 }>.
 
   Definition tgt1 : com :=
     <{ while (1)
@@ -214,19 +215,18 @@ Section EX.
        ret 1
     }>.
 
-  Goal refines (Imp_Program2 src1) (Imp_Program2 tgt1).
+  Goal refines (Imp_Program_Ext src1) (Imp_Program_Ext tgt1).
   Proof.
   Admitted.
 
 
   (* CEX2. The other way around. Prove this by coinduction. *)
-  Goal refines (Imp_Program2 tgt1) (Imp_Program2 src1).
+  Goal refines (Imp_Program_Ext tgt1) (Imp_Program_Ext src1).
   Proof.
   Admitted.
 
   (** These counterexamples show that we need a mechanism to prevent *infinite stuttering*.
-      Stuttering in simulation means that only one side (src or tgt) makes progress,
-      while the other side stutters at the same state.
+      Stuttering in simulation means that only one side (src or tgt) makes progress, while the other side stutters at the same state.
       Stuttering is an essential feature that allows scalable verifications.
       Therefore, a correct and useful simulation should allow stuttering, but only finite times.
    *)

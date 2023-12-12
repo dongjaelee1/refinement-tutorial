@@ -16,18 +16,18 @@ Set Implicit Arguments.
 Module Mem.
   (** A simple memory model for Imp. *)
 
-  Definition t := nat -> option Z.
+  Definition t := nat -> option nat.
 
-  Definition load (m : t) (x : nat) : option Z := (m x).
+  Definition load (m : t) (x : nat) : option nat := (m x).
 
-  Definition store (m : t) (x : nat) (v : Z): t :=
+  Definition store (m : t) (x : nat) (v : nat): t :=
     fun y => if (Nat.eqb x y) then (Some v) else (m y).
 
   Definition init : t := fun _ => None.
 
   Variant label : Type :=
-    | LLoad (x : nat) (v : Z) : label
-    | LStore (x : nat) (v : Z) : label
+    | LLoad (x : nat) (v : nat) : label
+    | LStore (x : nat) (v : nat) : label
   .
 
 End Mem.
@@ -36,11 +36,11 @@ End Mem.
 Module Reg.
   (** A simple register (local environment) for Imp. *)
 
-  Definition t := string -> option Z.
+  Definition t := string -> option nat.
 
-  Definition read (r : t) (x : string) : option Z := (r x).
+  Definition read (r : t) (x : string) : option nat := (r x).
 
-  Definition write (r : t) (x : string) (v : Z): t :=
+  Definition write (r : t) (x : string) (v : nat): t :=
     fun y => if (String.eqb x y) then (Some v) else (r y).
 
   Definition init : t := fun _ => None.
@@ -51,7 +51,7 @@ End Reg.
 (** ** Labels for transitions in Imp. *)
 Variant label : Type :=
   | LInternal
-  | LExternal (name : string) (args : list Z) (retv : Z)
+  | LExternal (name : string) (args : list nat) (retv : nat)
 .
 
 Definition Imp_label := (Mem.label + label)%type.
@@ -70,7 +70,7 @@ Variant bin_op : Type :=
 
 Inductive aexp : Type :=
 | AAny
-| ANum (n : Z)
+| ANum (n : nat)
 | AId (x : string)
 | ABinOp (op : bin_op) (a1 a2 : aexp).
 
@@ -78,7 +78,7 @@ Inductive aexp : Type :=
 (* You don't need to understand this part. *)
 
 Coercion AId : string >-> aexp.
-Coercion ANum : Z >-> aexp.
+Coercion ANum : nat >-> aexp.
 
 Declare Custom Entry com.
 Declare Scope com_scope.
@@ -99,21 +99,21 @@ Open Scope com_scope.
 (** Semantics. *)
 Reserved Notation " '[' r ',' a ']' '==>' n" (at level 90, left associativity).
 
-Definition bin_op_eval (op : bin_op) (a1 a2 : Z) : Z :=
+Definition bin_op_eval (op : bin_op) (a1 a2 : nat) : nat :=
   match op with
   | BOpAdd => a1 + a2
   | BOpSub => a1 - a2
   | BOpMult => a1 * a2
   end.
 
-Inductive aeval : Reg.t -> aexp -> Z -> Prop :=
-| E_Any r (n : Z) :
+Inductive aeval : Reg.t -> aexp -> nat -> Prop :=
+| E_Any r (n : nat) :
   [r, AAny] ==> n
-| E_ANum r (n : Z) :
+| E_ANum r (n : nat) :
   [r, n] ==> n
 | E_AId r (x : string) :
   forall v, (r x = Some v) -> [r, x] ==> v
-| E_ABinOp r (op: bin_op) (a1 a2 : aexp) (n1 n2 : Z) :
+| E_ABinOp r (op: bin_op) (a1 a2 : aexp) (n1 n2 : nat) :
   ([r, a1] ==> n1) -> ([r, a2] ==> n2) -> [r, ABinOp op a1 a2] ==> (bin_op_eval op n1 n2)
 
 where " '[' r ',' a ']' '==>' n" := (aeval r a n) : type_scope.
@@ -171,20 +171,20 @@ Notation "x ':=@' f '<' a '>'" :=
     (in custom com at level 0, x constr at level 0,
         a at level 85, no associativity) : com_scope.
 
-Coercion Z.to_nat : Z >-> nat.
-
-
 (** Semantics. *)
+(* Continuation. *)
 Inductive cont :=
 | Kstop : cont
 | Kseq : com -> cont -> cont
 .
 
+(* Local state. *)
 Variant state :=
   | Normal (r : Reg.t) (c : com) (k: cont)
-  | Return (v : Z)
+  | Return (v : nat)
   | Undef.
 
+(* Imp state. *)
 Definition Imp_state := (Mem.t * state)%type.
 
 Reserved Notation
@@ -232,6 +232,9 @@ Inductive ceval : Imp_state -> Imp_label -> Imp_state -> Prop :=
 
 where "st =( l )=> st'" := (ceval st l st').
 
+(* A imp program can take a step if there exists one. 
+   If not, it transitions into Undef state, and gets stuck.
+ *)
 Variant step : Imp_state -> Imp_label -> Imp_state -> Prop :=
   | Step_normal
       st e st'
@@ -244,6 +247,7 @@ Variant step : Imp_state -> Imp_label -> Imp_state -> Prop :=
     :
     step (m, lst) (inr LInternal) (m, Undef).
 
+(* Initial state of an Imp program is specified with a user-provided command. *)
 Definition Imp_init (c : com) : Imp_state := (Mem.init, Normal Reg.init c Kstop).
 
 
@@ -259,6 +263,7 @@ Definition Imp_sort (s : Imp_state) : sort :=
 Definition Imp_STS (ekind : Imp_label -> kind) : STS :=
   mk_sts (Imp_Event ekind) step Imp_sort.
 
+(* Memory events are also observable. *)
 Definition ekind_memory (l : Imp_label) : kind :=
   match l with
   | inl _ => observableE
@@ -268,6 +273,7 @@ Definition ekind_memory (l : Imp_label) : kind :=
             end
   end.
 
+(* Memory events are not observable. *)
 Definition ekind_external (l : Imp_label) : kind :=
   match l with
   | inl _ => silentE
@@ -278,9 +284,9 @@ Definition ekind_external (l : Imp_label) : kind :=
   end.
 
 (** We define two semantics. One where memory events are also visible: *)
-Definition Imp_STS1 : STS := Imp_STS ekind_memory.
-Definition Imp_Program1 (c : com) : Program Imp_STS1 := mk_program Imp_STS1 (Imp_init c).
+Definition Imp_STS_Mem : STS := Imp_STS ekind_memory.
+Definition Imp_Program_Mem (c : com) : Program Imp_STS_Mem := mk_program Imp_STS_Mem (Imp_init c).
 
-(** And the other where memory events are not visible: *)
-Definition Imp_STS2 : STS := Imp_STS ekind_external.
-Definition Imp_Program2 (c : com) : Program Imp_STS2 := mk_program Imp_STS2 (Imp_init c).
+(** And the other where only external events are visible (memory events are not visible): *)
+Definition Imp_STS_Ext : STS := Imp_STS ekind_external.
+Definition Imp_Program_Ext (c : com) : Program Imp_STS_Ext := mk_program Imp_STS_Ext (Imp_init c).
