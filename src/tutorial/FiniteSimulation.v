@@ -13,16 +13,16 @@ Set Implicit Arguments.
 
 Section SIM.
 
-  Context {event: Event}.
-  Context {sem: @STS event}.
-
-  Notation ekind := event.(label_kind).
-  Notation sort := sem.(state_sort).
+  Context {label: Type}.
+  Context {ekind: label -> kind}.
+  Context {state: Type}.
+  Context {step: state -> label -> state -> Prop}.
+  Context {sort: state -> sort}.
 
   (* Inductive simulation. We only have to reason one (source or target) step at a time. *)
   Inductive sim
     :
-    sem.(state) -> sem.(state) -> Prop :=
+    state -> state -> Prop :=
   | sim_term
       st_src st_tgt r_src r_tgt
       (TERMS: sort st_src = final r_src)
@@ -35,9 +35,9 @@ Section SIM.
       (OBSS: sort st_src0 = normal)
       (OBST: sort st_tgt0 = normal)
       (SIM: forall ev st_tgt1,
-          (sem.(step) st_tgt0 ev st_tgt1) ->
+          (step st_tgt0 ev st_tgt1) ->
           (ekind ev = observableE) /\
-          exists st_src1, (sem.(step) st_src0 ev st_src1) /\
+          exists st_src1, (step st_src0 ev st_src1) /\
                        (sim st_src1 st_tgt1))
     :
     sim st_src0 st_tgt0
@@ -45,7 +45,7 @@ Section SIM.
       st_src0 st_tgt
       (SORT: sort st_src0 = normal)
       (SIM: exists ev st_src1,
-          (sem.(step) st_src0 ev st_src1) /\
+          (step st_src0 ev st_src1) /\
             (ekind ev = silentE) /\
             (sim st_src1 st_tgt))
     :
@@ -54,7 +54,7 @@ Section SIM.
       st_src st_tgt0
       (SORT: sort st_tgt0 = normal)
       (SIM: forall ev st_tgt1,
-          (sem.(step) st_tgt0 ev st_tgt1) ->
+          (step st_tgt0 ev st_tgt1) ->
           (ekind ev = silentE) /\
           (sim st_src st_tgt1))
     :
@@ -69,7 +69,7 @@ Section SIM.
 
   (* Because Coq fails to generate a correct induction lemma, we need to make one. *)
   Lemma sim_ind2
-        (P: sem.(state) -> sem.(state) -> Prop)
+        (P: state -> state -> Prop)
         (TERM: forall st_src st_tgt r_src r_tgt
                  (TERMS: sort st_src = final r_src)
                  (TERMT: sort st_tgt = final r_tgt)
@@ -80,16 +80,16 @@ Section SIM.
                 (OBSS: sort st_src0 = normal)
                 (OBST: sort st_tgt0 = normal)
                 (SIM: forall ev st_tgt1,
-                    (sem.(step) st_tgt0 ev st_tgt1) ->
+                    (step st_tgt0 ev st_tgt1) ->
                     (ekind ev = observableE) /\
-                    exists st_src1, (sem.(step) st_src0 ev st_src1) /\
+                    exists st_src1, (step st_src0 ev st_src1) /\
                                  (sim st_src1 st_tgt1) /\ (P st_src1 st_tgt1))
           ,
             P st_src0 st_tgt0)
         (SILENTS: forall st_src0 st_tgt
                     (SORT: sort st_src0 = normal)
                     (SIM: exists ev st_src1,
-                        (sem.(step) st_src0 ev st_src1) /\
+                        (step st_src0 ev st_src1) /\
                           (ekind ev = silentE) /\
                           (sim st_src1 st_tgt) /\ (P st_src1 st_tgt))
           ,
@@ -97,7 +97,7 @@ Section SIM.
         (SILENTT: forall st_src st_tgt0
                     (SORT: sort st_tgt0 = normal)
                     (SIM: forall ev st_tgt1,
-                        (sem.(step) st_tgt0 ev st_tgt1) ->
+                        (step st_tgt0 ev st_tgt1) ->
                         (ekind ev = silentE) /\
                         ((sim st_src st_tgt1) /\ (P st_src st_tgt1)))
           ,
@@ -122,10 +122,10 @@ Section SIM.
 End SIM.
 #[export] Hint Constructors sim: core.
 
+
 (* A complete simulation relation. *)
 Definition simulation {l: Event} {sem: @STS l} (src tgt: Program sem) :=
-  sim src.(init) tgt.(init).
-
+  @sim _ l.(label_kind) _ sem.(step) sem.(state_sort) src.(init) tgt.(init).
 
 
 (** Of course, we need to prove that a simulation relation is sound, which means simulation implies refinement.
@@ -137,6 +137,8 @@ Section ADEQ.
 
   Context {event: Event}.
   Context {sem: @STS event}.
+
+  Local Notation sim := (@sim _ event.(label_kind) _ sem.(step) sem.(state_sort)).
 
   (* First prove the simulation is sound for a silent divergence case.
      In fact, this is almost trivial because our simulation only works for finite programs, which do not divergs.
