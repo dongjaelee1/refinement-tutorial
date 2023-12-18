@@ -29,7 +29,7 @@ All the files for the tutorial are in `src/tutorial/` (`src/lib` contains librar
 
 -> `Simulation.v`
 
--> `Example3.v` (WIP)
+-> `Example3.v`
 
 ## References
 Some helpful references.

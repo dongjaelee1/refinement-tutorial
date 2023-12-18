@@ -129,6 +129,101 @@ Section EX.
 
   Goal refines (Imp_Program_Ext src1) (Imp_Program_Ext tgt1).
   Proof.
-  Admitted.
+  Abort.
 
 End EX.
+
+Section EXOPT.
+  (** Code optimizations are insteresting examples to verify with our simulation.
+      Note that you will need to find a loop invariant.
+   *)
+
+  (* OPT1. Store-to-load forwarding. *)
+  Definition src_opt1 : com :=
+    <{ "c" :=@ "scan" <[]>;
+       &<1> := "c";
+       "x" := &<1>;
+       while ("x")
+       do ("x" :=@ "scan" <[]>;
+           "a" :=@ "print" <["x" : aexp]>;
+           "x" := &<1>)
+       end;
+       ret 0
+    }>.
+
+  Definition tgt_opt1 : com :=
+    <{ "c" :=@ "scan" <[]>;
+       &<1> := "c";
+       "x" := "c";
+       while ("x")
+       do ("x" :=@ "scan" <[]>;
+           "a" :=@ "print" <["x" : aexp]>;
+           "x" := "c")
+       end;
+       ret 0
+    }>.
+
+  Goal refines (Imp_Program_Ext src_opt1) (Imp_Program_Ext tgt_opt1).
+  Proof.
+  Admitted.
+
+  (* OPT2. Load-to-load forwarding. *)
+  Definition src_opt2 : com :=
+    <{ "a" :=@ "scan" <[]>;
+       &<1> := "a";
+       "c" := &<1>;
+       "x" := &<1>;
+       while ("x")
+       do ("x" :=@ "scan" <[]>;
+           "a" :=@ "print" <["x" : aexp]>;
+           "x" := &<1>)
+       end;
+       ret 0
+    }>.
+
+  Definition tgt_opt2 : com :=
+    <{ "a" :=@ "scan" <[]>;
+       &<1> := "a";
+       "c" := &<1>;
+       "x" := "c";
+       while ("x")
+       do ("x" :=@ "scan" <[]>;
+           "a" :=@ "print" <["x" : aexp]>;
+           "x" := "c")
+       end;
+       ret 0
+    }>.
+
+  Goal refines (Imp_Program_Ext src_opt2) (Imp_Program_Ext tgt_opt2).
+  Proof.
+  Admitted.
+
+  (* OPT3. Loop invariant code motion. *)
+  Definition src_opt3 : com :=
+    <{ &<1> := 1;
+       while (1)
+       do ("x" :=@ "scan" <[]>;
+           "a" := &<1>;
+           "x" := "x" + "a";
+           "a" :=@ "print" <["x" : aexp]>)
+       end;
+       ret 0
+    }>.
+
+  Definition tgt_opt3 : com :=
+    <{ &<1> := 1;
+       "c" := &<1>;
+       while (1)
+       do ("x" :=@ "scan" <[]>;
+           "a" := "c";
+           "x" := "x" + "a";
+           "a" :=@ "print" <["x" : aexp]>)
+       end;
+       ret 0
+    }>.
+
+  Goal refines (Imp_Program_Ext src_opt3) (Imp_Program_Ext tgt_opt3).
+  Proof.
+  Admitted.
+
+End EXOPT.
