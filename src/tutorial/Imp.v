@@ -107,7 +107,7 @@ Definition bin_op_eval (op : bin_op) (a1 a2 : nat) : nat :=
   end.
 
 Inductive aeval : Reg.t -> aexp -> nat -> Prop :=
-| E_Any r (n : nat) :
+| E_AAny r (n : nat) :
   [r, AAny] ==> n
 | E_ANum r (n : nat) :
   [r, n] ==> n
@@ -207,7 +207,7 @@ Inductive ceval : Imp_state -> Imp_label -> Imp_state -> Prop :=
 | E_IfFalse : forall m r b c1 c2 k n,
     aeval r b n ->
     n = 0 ->
-    (m, Normal r (CIf b c1 c2) k) =(inr LInternal)=> (m, Normal r c1 k)
+    (m, Normal r (CIf b c1 c2) k) =(inr LInternal)=> (m, Normal r c2 k)
 | E_WhileFalse : forall m r b c k n,
     aeval r b n ->
     n = 0 ->
