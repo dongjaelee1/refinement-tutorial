@@ -183,7 +183,7 @@ Section EX.
       left.
       (* AAny introduces nondeterminism. We picks what we need when AAny is in the src. *)
       pfold. econs 3; ss. do 2 eexists. splits.
-      { econs 1. eapply E_Asgn. eapply (E_Any _ n). }
+      { econs 1. eapply E_Asgn. eapply (E_AAny _ n). }
       { ss. }
       left.
       (* Now we came back to the start of the while loop. We can end the proof by coinduction. *)
