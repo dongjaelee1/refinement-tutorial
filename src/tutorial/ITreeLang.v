@@ -1,9 +1,54 @@
-From Coq Require Import Classes.RelationClasses.
 From sflib Require Import sflib.
 From Paco Require Import paco.
 From Tutorial Require Import Refinement ITreeLib.
+From Coq Require Import Strings.String List.
 
 Set Implicit Arguments.
+
+
+Module Mem.
+  (** A simple memory model. *)
+
+  Definition t := nat -> option nat.
+
+  Definition load (m : t) (x : nat) : option nat := (m x).
+
+  Definition store (m : t) (x : nat) (v : nat): t :=
+    fun y => if (Nat.eqb x y) then (Some v) else (m y).
+
+  Definition init : t := fun _ => None.
+
+  Variant label : Type :=
+    | LLoad (x : nat) (v : nat) : label
+    | LStore (x : nat) (v : nat) : label
+  .
+
+  Variant memE: Type -> Type :=
+    | Load : memE (option nat)
+    | Store (x : nat) (v : nat) : memE unit
+  .
+
+End Mem.
+
+
+Module Reg.
+  (** A simple register (local environment) for Imp. *)
+
+  Definition t := string -> option nat.
+
+  Definition read (r : t) (x : string) : option nat := (r x).
+
+  Definition write (r : t) (x : string) (v : nat): t :=
+    fun y => if (String.eqb x y) then (Some v) else (r y).
+
+  Definition init : t := fun _ => None.
+
+  Variant regE: Type -> Type :=
+    | Read : regE (option nat)
+    | Write (x : nat) (v : nat) : regE unit
+  .
+
+End Reg.
 
 (* Section EVENT. *)
 
