@@ -44,7 +44,7 @@ Open Scope monad_scope.
 Open Scope itree_scope.
 
 Require Import Program.
-From sflib Require Import sflib.
+From Tutorial Require Import sflib.
 From Paco Require Import paco.
 
 Require ClassicalFacts.

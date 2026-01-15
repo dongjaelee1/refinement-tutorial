@@ -1,5 +1,5 @@
 From Coq Require Import Classes.RelationClasses.
-From sflib Require Import sflib.
+From Tutorial Require Import sflib.
 From Paco Require Import paco.
 
 Set Implicit Arguments.
