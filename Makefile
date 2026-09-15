@@ -2,6 +2,8 @@ COQMODULE    := Tutorial
 COQTHEORIES  := \
 	src/lib/*.v \
 	src/tutorial/*.v \
+	src/tutorial/examples/*.v \
+	src/tutorial/advanced_examples/*.v \
 
 .PHONY: all theories clean
 
@@ -16,6 +18,8 @@ quick: Makefile.coq
 Makefile.coq: Makefile $(COQTHEORIES)
 	(echo "-Q src/lib $(COQMODULE)"; \
 	 echo "-Q src/tutorial $(COQMODULE)"; \
+	 echo "-Q src/tutorial/examples $(COQMODULE)"; \
+	 echo "-Q src/tutorial/advanced_examples $(COQMODULE)"; \
    \
    echo $(COQTHEORIES)) > _CoqProject
 	coq_makefile -f _CoqProject -o Makefile.coq

@@ -1,4 +1,4 @@
-From Coq Require Import Classes.RelationClasses.
+From Stdlib Require Import Classes.RelationClasses.
 From Tutorial Require Import sflib.
 From Paco Require Import paco.
 

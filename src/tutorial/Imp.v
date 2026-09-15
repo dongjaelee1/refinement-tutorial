@@ -1,7 +1,7 @@
 From Tutorial Require Import sflib.
 From Paco Require Import paco.
 From Tutorial Require Import Refinement.
-From Coq Require Import Strings.String List.
+From Stdlib Require Import Strings.String List.
 
 Set Implicit Arguments.
 

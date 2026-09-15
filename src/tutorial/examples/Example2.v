@@ -89,7 +89,7 @@ Definition simulation {l: Event} {sem: @STS l} (src tgt: Program sem) :=
 
 
 
-From Coq Require Import Strings.String List.
+From Stdlib Require Import Strings.String List.
 From Tutorial Require Import Imp.
 
 Section EX.
